@@ -1,0 +1,3283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SKY RELIC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070915;
+    --panel:#10142a;
+    --panel-2:#161b38;
+    --line:#2a3060;
+    --text:#e7e9f5;
+    --text-dim:#8a90b8;
+    --cyan:#4ce0d4;
+    --amber:#ffb703;
+    --red:#ef476f;
+    --violet:#a78bfa;
+    --green:#7ee787;
+    --common:#8a90b8;
+    --rare:#4ce0d4;
+    --epic:#a78bfa;
+    --legendary:#ffb703;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    height:100%;
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Space Mono',monospace;
+    overflow:hidden;
+    -webkit-user-select:none;
+    user-select:none;
+  }
+  .pixel{font-family:'Press Start 2P',monospace;}
+  #app{
+    position:relative;
+    width:100%;
+    height:100%;
+    min-height:560px;
+    background:var(--bg);
+  }
+  canvas#game{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    display:block;
+    touch-action:none;
+  }
+  /* scanline overlay */
+  .scan{
+    position:absolute;inset:0;pointer-events:none;z-index:50;
+    background:repeating-linear-gradient(
+      to bottom,
+      rgba(0,0,0,0) 0px,
+      rgba(0,0,0,0) 2px,
+      rgba(0,0,0,0.08) 3px
+    );
+    mix-blend-mode:overlay;
+  }
+  .vignette{
+    position:absolute;inset:0;pointer-events:none;z-index:49;
+    box-shadow:inset 0 0 120px 30px rgba(0,0,0,0.65);
+  }
+
+  /* ---------- Screens ---------- */
+  .screen{
+    position:absolute;inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    z-index:20;
+    overflow-y:auto;
+    padding:calc(24px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px));
+  }
+  .hidden{display:none !important;}
+
+  .title-wrap{
+    text-align:center;
+    margin:24px 0 8px;
+  }
+  .title{
+    font-size:clamp(22px,6vw,42px);
+    letter-spacing:2px;
+    color:var(--cyan);
+    text-shadow:0 0 8px rgba(76,224,212,0.6), 0 0 24px rgba(76,224,212,0.25);
+    line-height:1.5;
+  }
+  .subtitle{
+    margin-top:10px;
+    color:var(--text-dim);
+    font-size:11px;
+    letter-spacing:1px;
+  }
+
+  .menu-list{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    margin-top:36px;
+    width:min(320px,86vw);
+  }
+  .btn{
+    font-family:'Press Start 2P',monospace;
+    font-size:12px;
+    color:var(--text);
+    background:var(--panel);
+    border:2px solid var(--line);
+    padding:16px 18px;
+    cursor:pointer;
+    text-align:left;
+    letter-spacing:1px;
+    position:relative;
+    transition:transform .12s ease, border-color .12s ease, background .12s ease;
+  }
+  .btn:hover{border-color:var(--cyan);background:var(--panel-2);transform:translateX(4px);}
+  .btn:active{transform:translateX(2px) scale(.99);}
+  .btn:disabled{opacity:.35;cursor:not-allowed;transform:none;}
+  .btn:disabled:hover{border-color:var(--line);background:var(--panel);transform:none;}
+  .btn .arrow{position:absolute;right:16px;top:50%;transform:translateY(-50%);color:var(--cyan);opacity:0;transition:opacity .12s;}
+  .btn:hover .arrow{opacity:1;}
+  .btn.primary{border-color:var(--cyan);color:var(--bg);background:var(--cyan);}
+  .btn.primary:hover{background:#6be9df;}
+  .btn small{display:block;margin-top:6px;font-family:'Space Mono',monospace;font-size:10px;color:var(--text-dim);letter-spacing:0;}
+  .btn.primary small{color:rgba(7,9,21,0.7);}
+
+  .panel-header{
+    display:flex;align-items:center;justify-content:space-between;
+    width:100%;max-width:820px;margin-bottom:18px;gap:12px;flex-wrap:wrap;
+  }
+  .panel-header .pixel{font-size:16px;color:var(--amber);letter-spacing:1px;}
+  .back-btn{
+    font-family:'Space Mono',monospace;font-weight:700;
+    color:var(--text-dim);background:transparent;border:1px solid var(--line);
+    padding:8px 14px;cursor:pointer;font-size:12px;letter-spacing:1px;
+  }
+  .back-btn:hover{color:var(--cyan);border-color:var(--cyan);}
+
+  .content-box{
+    width:100%;max-width:820px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    padding:20px;
+  }
+
+  /* ---- level select ---- */
+  .level-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(58px,1fr));
+    gap:8px;
+    max-height:60vh;
+    overflow-y:auto;
+    padding-right:4px;
+  }
+  .lvl-cell{
+    aspect-ratio:1;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    font-size:12px;font-weight:700;
+    cursor:pointer;position:relative;color:var(--text);
+  }
+  .lvl-cell.locked{color:#454b70;cursor:not-allowed;}
+  .lvl-cell.boss10::after{content:'★';position:absolute;top:2px;right:3px;font-size:8px;color:var(--amber);}
+  .lvl-cell.done{border-color:var(--green);color:var(--green);}
+  .lvl-cell.current{border-color:var(--cyan);box-shadow:0 0 8px rgba(76,224,212,.5);}
+  .lvl-cell:not(.locked):hover{background:#1e2450;}
+
+  /* ---- battlepass ---- */
+  .bp-progress-wrap{margin-bottom:16px;}
+  .bp-bar-track{height:14px;background:var(--panel-2);border:1px solid var(--line);overflow:hidden;}
+  .bp-bar-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--violet));transition:width .3s ease;}
+  .bp-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-top:6px;}
+  .bp-track{
+    display:flex;gap:10px;overflow-x:auto;padding:6px 2px 14px;
+  }
+  .bp-tier{
+    flex:0 0 auto;width:92px;
+    background:var(--panel-2);border:1px solid var(--line);
+    padding:10px 8px;text-align:center;
+  }
+  .bp-tier.unlocked{border-color:var(--rarity,var(--cyan));}
+  .bp-tier.locked{opacity:.45;}
+  .bp-tier .icon{font-size:22px;margin-bottom:6px;}
+  .bp-tier .tnum{font-size:9px;color:var(--text-dim);}
+  .bp-tier .iname{font-size:10px;margin-top:4px;line-height:1.3;min-height:26px;}
+  .bp-tier .rarity{font-size:8px;margin-top:4px;letter-spacing:1px;text-transform:uppercase;}
+
+  /* ---- inventory ---- */
+  .inv-tabs{display:flex;gap:8px;margin-bottom:14px;}
+  .inv-tab{
+    font-size:10px;font-family:'Press Start 2P',monospace;
+    padding:9px 12px;background:var(--panel-2);border:1px solid var(--line);
+    cursor:pointer;color:var(--text-dim);
+  }
+  .inv-tab.active{color:var(--bg);background:var(--cyan);border-color:var(--cyan);}
+  .inv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;}
+  .inv-item{
+    background:var(--panel-2);border:1px solid var(--line);padding:12px 10px;text-align:center;cursor:pointer;
+  }
+  .inv-item.equipped{border-color:var(--green);box-shadow:0 0 10px rgba(126,231,135,.35);}
+  .inv-item .icon{font-size:26px;}
+  .inv-item .iname{font-size:11px;margin-top:6px;}
+  .inv-item .stat{font-size:9px;color:var(--text-dim);margin-top:4px;}
+  .inv-item .eqtag{font-size:8px;color:var(--green);margin-top:6px;letter-spacing:1px;}
+
+  /* ---- settings ---- */
+  .set-row{display:flex;align-items:center;justify-content:space-between;padding:14px 4px;border-bottom:1px solid var(--line);}
+  .set-row:last-child{border-bottom:none;}
+  .set-label{font-size:12px;}
+  .set-label small{display:block;color:var(--text-dim);font-size:10px;margin-top:3px;}
+  .toggle{width:46px;height:24px;background:var(--panel-2);border:1px solid var(--line);position:relative;cursor:pointer;}
+  .toggle.on{background:rgba(76,224,212,.25);border-color:var(--cyan);}
+  .toggle .knob{position:absolute;top:2px;left:2px;width:18px;height:18px;background:var(--text-dim);transition:transform .15s;}
+  .toggle.on .knob{background:var(--cyan);transform:translateX(21px);}
+  .seg{display:flex;gap:6px;}
+  .seg button{font-size:10px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--line);color:var(--text-dim);cursor:pointer;}
+  .seg button.active{color:var(--bg);background:var(--amber);border-color:var(--amber);}
+  .color-seg button{display:flex;align-items:center;gap:5px;}
+  .color-seg button::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--sw,#fff);box-shadow:0 0 4px var(--sw,#fff);display:inline-block;}
+  .color-seg button.active{background:var(--panel-2);border-color:var(--sw,var(--amber));color:var(--text);box-shadow:0 0 8px var(--sw,transparent);}
+  .danger-btn{margin-top:18px;font-size:11px;color:var(--red);background:transparent;border:1px solid var(--red);padding:10px 14px;cursor:pointer;}
+  .danger-btn:hover{background:rgba(239,71,111,.12);}
+
+  /* ---------- HUD ---------- */
+  #hud{
+    position:absolute;inset:0;z-index:30;pointer-events:none;
+    padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px;
+  }
+  .hud-top{display:flex;justify-content:space-between;align-items:flex-start;}
+  .hearts{display:flex;gap:5px;}
+  .heart{width:20px;height:18px;position:relative;}
+  .heart svg{width:100%;height:100%;}
+  .hud-mid-info{text-align:center;}
+  .hud-level{font-size:11px;color:var(--amber);font-family:'Press Start 2P',monospace;letter-spacing:1px;}
+  .hud-wave{font-size:10px;color:var(--text-dim);margin-top:4px;}
+  .hud-score{text-align:right;font-size:11px;color:var(--cyan);}
+  .boss-bar-wrap{
+    position:absolute;top:64px;left:50%;transform:translateX(-50%);
+    width:min(420px,80vw);text-align:center;
+  }
+  .boss-name{font-size:9px;color:var(--red);font-family:'Press Start 2P',monospace;letter-spacing:1px;margin-bottom:4px;}
+  .boss-track{height:10px;background:rgba(0,0,0,.5);border:1px solid var(--red);}
+  .boss-fill{height:100%;background:var(--red);transition:width .15s ease;}
+  .pause-btn{
+    pointer-events:all;
+    background:var(--panel);border:1px solid var(--line);color:var(--text-dim);
+    width:34px;height:34px;font-size:14px;cursor:pointer;margin-top:6px;
+  }
+  .toast{
+    position:absolute;top:100px;left:50%;transform:translateX(-50%);
+    font-size:11px;color:var(--green);background:rgba(0,0,0,.5);padding:6px 12px;
+    opacity:0;transition:opacity .3s ease;pointer-events:none;
+  }
+  .toast.show{opacity:1;}
+
+  /* overlay panels within game (pause / gameover / levelcomplete) */
+  .overlay-panel{
+    position:absolute;inset:0;z-index:40;
+    background:rgba(4,5,14,0.86);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+    text-align:center;padding:20px;
+  }
+  .overlay-panel .pixel.big{font-size:clamp(16px,4vw,26px);letter-spacing:1px;}
+  .stat-line{font-size:12px;color:var(--text-dim);}
+  .overlay-btns{display:flex;gap:12px;margin-top:10px;flex-wrap:wrap;justify-content:center;}
+  .overlay-btns .btn{width:180px;text-align:center;}
+
+  @media (max-width:480px){
+    .bp-tier{width:78px;}
+    .overlay-btns .btn{width:150px;font-size:10px;padding:12px;}
+  }
+
+  /* ---- ranks & reward packs ---- */
+  .rank-hero{
+    display:flex;align-items:center;gap:16px;
+    background:var(--panel-2);border:1px solid var(--line);
+    padding:16px;margin-bottom:16px;
+  }
+  .rank-badge{
+    width:64px;height:64px;flex:0 0 auto;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:26px;position:relative;
+    border:3px solid var(--rc,var(--text-dim));
+    background:radial-gradient(circle at 35% 30%, rgba(255,255,255,.18), transparent 60%), var(--panel);
+    box-shadow:0 0 14px var(--rc,transparent);
+  }
+  .rank-hero-info{flex:1;min-width:0;}
+  .rank-hero-name{font-size:14px;letter-spacing:1px;color:var(--rc,var(--text));font-family:'Press Start 2P',monospace;}
+  .rank-hero-sub{font-size:10px;color:var(--text-dim);margin-top:6px;}
+  .rank-track{
+    display:flex;gap:8px;overflow-x:auto;padding:4px 2px 14px;margin-bottom:18px;
+  }
+  .rank-cell{
+    flex:0 0 auto;width:74px;text-align:center;
+    background:var(--panel-2);border:1px solid var(--line);padding:10px 6px;cursor:pointer;
+  }
+  .rank-cell.locked{opacity:.4;}
+  .rank-cell.unlocked{border-color:var(--rc,var(--cyan));}
+  .rank-cell.current{box-shadow:0 0 10px var(--rc,var(--cyan));}
+  .rank-cell .rb{
+    width:34px;height:34px;border-radius:50%;margin:0 auto 6px;
+    display:flex;align-items:center;justify-content:center;font-size:14px;
+    border:2px solid var(--rc,var(--text-dim));background:var(--panel);
+  }
+  .rank-cell .rn{font-size:9px;color:var(--text-dim);}
+  .rank-badge-chip{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:20px; height:20px; border-radius:50%; font-size:11px; margin-right:5px;
+    background:radial-gradient(circle at 35% 30%, rgba(255,255,255,.18), transparent 60%), var(--panel);
+    border:2px solid var(--rc, var(--text-dim)); box-shadow:0 0 6px var(--rc, transparent);
+    vertical-align:middle;
+  }
+  .rank-badge-chip.unranked{ color:var(--text-dim); font-size:10px; border-color:var(--line); box-shadow:none; }
+  .rank-badge-chip.champion{ animation:championGlow 2s ease-in-out infinite; }
+  .rank-cell.champion-cell{
+    background:linear-gradient(160deg, rgba(255,224,102,.14), var(--panel-2));
+    animation:championGlow 2s ease-in-out infinite;
+  }
+  @keyframes championGlow{
+    0%,100%{box-shadow:0 0 8px rgba(255,224,102,.35);}
+    50%{box-shadow:0 0 20px rgba(255,224,102,.75);}
+  }
+  .pack-section{
+    background:var(--panel-2);border:1px solid var(--line);padding:16px;
+    display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  }
+  .pack-coins{font-size:11px;color:var(--amber);}
+  .pack-count{font-size:12px;margin-top:4px;}
+  .pack-btns{display:flex;gap:10px;flex-wrap:wrap;}
+  .pack-btns .btn{width:150px;text-align:center;font-size:10px;padding:12px;}
+
+  /* ---- pack opening reveal ---- */
+  .pack-stage{
+    width:150px;height:190px;position:relative;perspective:600px;margin-bottom:10px;
+  }
+  .pack-box{
+    width:100%;height:100%;border:3px solid var(--pc,var(--cyan));
+    background:linear-gradient(160deg, var(--panel-2), var(--panel));
+    display:flex;align-items:center;justify-content:center;font-size:52px;
+    box-shadow:0 0 26px var(--pc,var(--cyan));
+    transition:box-shadow .15s ease, border-color .15s ease;
+  }
+  .pack-box.spin{animation:packSpin .9s linear infinite;}
+  @keyframes packSpin{
+    0%{transform:rotateY(0deg) scale(1);}
+    50%{transform:rotateY(180deg) scale(1.04);}
+    100%{transform:rotateY(360deg) scale(1);}
+  }
+  .pack-result-rarity{
+    font-size:12px;letter-spacing:2px;text-transform:uppercase;margin-top:6px;
+    color:var(--pc,var(--cyan));text-shadow:0 0 10px var(--pc,var(--cyan));
+  }
+  .pack-result-name{font-size:14px;margin-top:8px;font-family:'Press Start 2P',monospace;}
+  .pack-result-dup{font-size:11px;color:var(--amber);margin-top:6px;}
+  .blackice-glow{
+    animation:blackIcePulse 1.4s ease-in-out infinite;
+  }
+  @keyframes blackIcePulse{
+    0%,100%{box-shadow:0 0 20px #bff4ff, 0 0 40px rgba(191,244,255,.4);}
+    50%{box-shadow:0 0 34px #eafeff, 0 0 60px rgba(191,244,255,.75);}
+  }
+
+  /* ---- splash / nickname ---- */
+  #splashScreen{
+    position:absolute;inset:0;z-index:100;background:#050612;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;cursor:pointer;
+  }
+  #splashScreen .stitle{font-size:clamp(20px,7vw,38px);color:var(--cyan);text-shadow:0 0 10px rgba(76,224,212,.6);letter-spacing:2px;}
+  #splashScreen .screator{margin-top:16px;font-size:11px;color:var(--text-dim);letter-spacing:2px;}
+  #splashScreen .screator b{color:var(--amber);}
+  #splashScreen .stap{margin-top:34px;font-size:9px;color:var(--text-dim);opacity:.6;animation:blink2 1.6s infinite;}
+  @keyframes blink2{0%,100%{opacity:.2;}50%{opacity:.8;}}
+  #nickScreen{
+    position:absolute;inset:0;z-index:99;background:rgba(4,5,14,0.95);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:20px;
+  }
+  #nickScreen .pixel{color:var(--cyan);font-size:15px;letter-spacing:1px;margin-bottom:6px;}
+  #nickScreen .nsub{font-size:10px;color:var(--text-dim);margin-bottom:20px;max-width:280px;}
+  #nickInput{
+    font-family:'Space Mono',monospace;font-size:14px;text-align:center;
+    background:var(--panel);border:2px solid var(--line);color:var(--text);
+    padding:12px 14px;width:min(260px,80vw);letter-spacing:1px;
+  }
+  #nickInput:focus{outline:none;border-color:var(--cyan);}
+  #nickError{color:var(--red);font-size:10px;margin-top:10px;min-height:14px;}
+  #nickConfirmBtn{margin-top:18px;width:200px;text-align:center;}
+
+  /* ---- leaderboard ---- */
+  .lb-countdown{font-size:10px;color:var(--text-dim);margin-bottom:14px;text-align:center;}
+  .lb-row{
+    display:flex;align-items:center;gap:12px;padding:10px 12px;
+    background:var(--panel-2);border:1px solid var(--line);margin-bottom:6px;
+  }
+  .lb-row.me{border-color:var(--cyan);box-shadow:0 0 10px rgba(76,224,212,.3);}
+  .lb-row.top1{border-color:#ffd166;background:linear-gradient(90deg, rgba(255,209,102,.14), var(--panel-2));}
+  .lb-rank{width:26px;font-size:12px;color:var(--text-dim);text-align:center;flex:0 0 auto;}
+  .lb-name{flex:1;font-size:12px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .lb-score{font-size:11px;color:var(--cyan);flex:0 0 auto;}
+  .gang-badge{
+    display:inline-flex;align-items:center;gap:4px;
+    font-size:9px;font-family:'Press Start 2P',monospace;letter-spacing:1px;
+    padding:3px 7px;margin-left:6px;border-radius:3px;
+    background:linear-gradient(120deg,#ff4d4d,#ffd166,#ff4d4d);
+    background-size:200% 100%;
+    color:#1a0700;
+    animation:gangShift 2.2s linear infinite, gangPulse 1.4s ease-in-out infinite;
+    vertical-align:middle;
+  }
+  @keyframes gangShift{0%{background-position:0% 50%;}100%{background-position:200% 50%;}}
+  @keyframes gangPulse{0%,100%{box-shadow:0 0 8px rgba(255,209,102,.6);}50%{box-shadow:0 0 18px rgba(255,77,77,.85);}}
+  .menu-nickname{font-size:11px;color:var(--text-dim);margin-top:8px;}
+  .menu-nickname b{color:var(--cyan);}
+
+  /* ---- shop ---- */
+  .shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;}
+  .shop-card{
+    background:var(--panel-2);border:1px solid var(--line);padding:12px 10px;text-align:center;
+    transition:transform .22s ease, opacity .22s ease;
+  }
+  .shop-card.shuffle-out{transform:scale(.7) rotateY(90deg);opacity:0;}
+  .shop-card.shuffle-in{transform:scale(.7) rotateY(-90deg);opacity:0;}
+  .shop-card .icon{font-size:28px;}
+  .shop-card .sname{font-size:11px;margin-top:6px;min-height:26px;}
+  .shop-card .srarity{font-size:9px;margin-top:2px;letter-spacing:1px;text-transform:uppercase;}
+  .shop-card .sprice{font-size:11px;color:var(--amber);margin-top:8px;}
+  .shop-card button{
+    margin-top:8px;width:100%;font-size:9px;padding:8px;cursor:pointer;
+    background:var(--cyan);border:1px solid var(--cyan);color:var(--bg);font-family:'Space Mono',monospace;font-weight:700;
+  }
+  .shop-card button:disabled{background:var(--panel);border-color:var(--line);color:var(--text-dim);cursor:not-allowed;}
+  .shop-header-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+  .shop-refresh-sub{font-size:9px;color:var(--text-dim);margin-top:4px;}
+
+  /* ---- friends ---- */
+  .friend-block{ background:var(--panel-2); border:1px solid var(--line); padding:14px; margin-bottom:14px; }
+  .friend-block-title{ font-size:11px; letter-spacing:1px; color:var(--cyan); margin-bottom:6px; font-family:'Press Start 2P',monospace; }
+  .friend-sub{ font-size:10px; color:var(--text-dim); margin-bottom:10px; line-height:1.5; }
+  .friend-code-box{
+    width:100%; box-sizing:border-box; font-family:'Space Mono',monospace; font-size:10px;
+    background:var(--panel); border:1px solid var(--line); color:var(--text); padding:8px;
+    resize:none; word-break:break-all;
+  }
+  .friend-code-box:focus{ outline:none; border-color:var(--cyan); }
+  .friend-error{ color:var(--red); font-size:10px; margin-top:6px; min-height:14px; }
+  .friend-row{
+    display:flex; align-items:center; gap:10px; padding:9px 10px; background:var(--panel);
+    border:1px solid var(--line); margin-bottom:6px;
+  }
+  .friend-row .fname{ flex:1; font-size:12px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .friend-row .fscore{ font-size:11px; color:var(--cyan); }
+  .friend-row .fremove{
+    background:none; border:1px solid var(--red); color:var(--red); font-size:9px;
+    padding:5px 8px; cursor:pointer; font-family:'Space Mono',monospace;
+  }
+  .friend-empty{ font-size:10px; color:var(--text-dim); text-align:center; padding:10px 0; }
+  .ranked-best{font-size:12px;color:var(--amber);margin:14px 0;}
+  .hud-ranked{color:var(--red)!important;}
+
+  /* ---- kill marker / hit marker (drawn on canvas, no CSS needed) ---- */
+  @keyframes bossFlash{
+    0%{opacity:1;} 60%{opacity:.5;} 100%{opacity:0;}
+  }
+
+  /* ---- mega pack reveal (legendary / black ice) ---- */
+  .mega-reveal{
+    position:absolute;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;
+    pointer-events:none;overflow:hidden;opacity:1;transition:opacity .5s ease;
+  }
+  .mega-reveal.fade-out{opacity:0;}
+  .mega-burst{
+    position:absolute;inset:-50%;
+    background:radial-gradient(circle, var(--mc,#ffb703) 0%, transparent 60%);
+    opacity:.5;animation:megaBurst 1.6s ease-out forwards;
+  }
+  @keyframes megaBurst{0%{transform:scale(0.15);opacity:.9;}100%{transform:scale(1.7);opacity:0;}}
+  .mega-legendary{--mc:#ffb703;}
+  .mega-blackice{--mc:#bff4ff;}
+  .mega-logo{
+    position:relative;font-family:'Press Start 2P',monospace;
+    font-size:clamp(15px,6vw,28px);color:#fff;text-align:center;letter-spacing:2px;
+    text-shadow:0 0 16px var(--mc), 0 0 34px var(--mc);
+    animation:megaLogoIn .55s cubic-bezier(.2,1.4,.4,1) both, megaLogoPulse 1s ease-in-out infinite .55s;
+  }
+  @keyframes megaLogoIn{0%{transform:scale(.2) rotate(-8deg);opacity:0;}100%{transform:scale(1) rotate(0);opacity:1;}}
+  @keyframes megaLogoPulse{0%,100%{filter:brightness(1);}50%{filter:brightness(1.35);}}
+
+  /* ---- global announcement banner ---- */
+  .global-announce{
+    position:absolute; top:14px; left:50%; transform:translate(-50%,-70px);
+    background:linear-gradient(90deg, rgba(191,244,255,.96), rgba(76,224,212,.96));
+    color:#04121a; font-family:'Space Mono',monospace; font-weight:700; font-size:11px;
+    padding:10px 20px; border-radius:22px; z-index:90; white-space:nowrap; max-width:90vw;
+    overflow:hidden; text-overflow:ellipsis;
+    box-shadow:0 4px 20px rgba(191,244,255,.55);
+    transition:transform .4s cubic-bezier(.2,1.2,.3,1), opacity .4s ease; opacity:0;
+  }
+  .global-announce.show{ transform:translate(-50%,0); opacity:1; }
+
+  /* ---- animated card glow for legendary / black ice skins in inventory & shop ---- */
+  .fx-card{ position:relative; animation:fxCardGlow 1.8s ease-in-out infinite; }
+  @keyframes fxCardGlow{
+    0%,100%{ box-shadow:0 0 6px var(--fxc,transparent); border-color:var(--fxc,var(--line)); }
+    50%{ box-shadow:0 0 18px var(--fxc,transparent); border-color:var(--fxc,var(--line)); }
+  }
+  .fx-card .icon{ animation:fxIconFloat 2.4s ease-in-out infinite; display:inline-block; }
+  @keyframes fxIconFloat{
+    0%,100%{ transform:translateY(0) scale(1); }
+    50%{ transform:translateY(-3px) scale(1.08); }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+
+  <!-- Splash / boot credit -->
+  <div id="splashScreen">
+    <div class="stitle pixel">SKY<br>RELIC</div>
+    <div class="screator">A GAME BY <b>STEVE ABNUSI</b></div>
+    <div class="stap">TAP OR CLICK TO CONTINUE</div>
+  </div>
+
+  <!-- Nickname entry -->
+  <div id="nickScreen" class="hidden">
+    <div class="pixel">CHOOSE YOUR CALLSIGN</div>
+    <div class="nsub">Your callsign appears on the Leaderboard. Each callsign can only be claimed once.</div>
+    <input id="nickInput" maxlength="16" placeholder="e.g. SkyRider" autocomplete="off">
+    <div id="nickError"></div>
+    <button class="btn primary" id="nickConfirmBtn">CONFIRM</button>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <div>
+        <div class="hearts" id="hearts"></div>
+        <div class="hearts" id="shieldPips" style="margin-top:4px;"></div>
+        <button class="pause-btn" id="pauseBtn">II</button>
+      </div>
+      <div class="hud-mid-info">
+        <div class="hud-level" id="hudLevel">LEVEL 1</div>
+        <div class="hud-wave" id="hudWave">WAVE 1 / 2</div>
+      </div>
+      <div class="hud-score">
+        <div id="hudXP">+0 XP</div>
+      </div>
+    </div>
+    <div class="boss-bar-wrap hidden" id="bossBarWrap">
+      <div class="boss-name" id="bossName">BOSS</div>
+      <div class="boss-track"><div class="boss-fill" id="bossFill" style="width:100%"></div></div>
+    </div>
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <!-- Pause overlay -->
+  <div class="overlay-panel hidden" id="pausePanel">
+    <div class="pixel big" style="color:var(--cyan)">PAUSED</div>
+    <div class="overlay-btns">
+      <button class="btn primary" id="resumeBtn">RESUME</button>
+      <button class="btn" id="pauseSettingsBtn">SETTINGS</button>
+      <button class="btn" id="quitBtn">QUIT TO MENU</button>
+    </div>
+  </div>
+
+  <!-- Game over overlay -->
+  <div class="overlay-panel hidden" id="gameOverPanel">
+    <div class="pixel big" style="color:var(--red)">SHOT DOWN</div>
+    <div class="stat-line" id="goStats"></div>
+    <div class="overlay-btns">
+      <button class="btn primary" id="retryBtn">RETRY LEVEL</button>
+      <button class="btn" id="goMenuBtn">MAIN MENU</button>
+    </div>
+  </div>
+
+  <!-- Level complete overlay -->
+  <div class="overlay-panel hidden" id="winPanel">
+    <div class="pixel big" style="color:var(--green)">LEVEL CLEAR</div>
+    <div class="stat-line" id="winStats"></div>
+    <div class="overlay-btns">
+      <button class="btn primary" id="nextLevelBtn">NEXT LEVEL</button>
+      <button class="btn" id="winMenuBtn">MAIN MENU</button>
+    </div>
+  </div>
+
+  <!-- Final victory -->
+  <div class="overlay-panel hidden" id="victoryPanel">
+    <div class="pixel big" style="color:var(--amber)">SKY LEGEND</div>
+    <div class="stat-line">You cleared all 100 skies. The relic is yours.</div>
+    <div class="overlay-btns">
+      <button class="btn primary" id="victoryMenuBtn">MAIN MENU</button>
+    </div>
+  </div>
+
+  <!-- MENU -->
+  <div class="screen" id="screen-menu">
+    <div class="title-wrap">
+      <div class="title pixel">SKY<br>RELIC</div>
+      <div class="subtitle">A NOSTALGIA AIR-COMBAT ARCADE</div>
+      <div class="menu-nickname" id="menuNickname"></div>
+    </div>
+    <div class="menu-list">
+      <button class="btn primary" data-go="levels">START GAME<span class="arrow">▶</span><small id="menuProgress">Level 1 of 100</small></button>
+      <button class="btn" data-go="ranked">RANKED MODE<span class="arrow">▶</span><small id="menuRanked">Endless survival • Best: 0</small></button>
+      <button class="btn" data-go="battlepass">BATTLE PASS<span class="arrow">▶</span><small id="menuBP">Tier 0 / 90</small></button>
+      <button class="btn" data-go="ranks">RANK & PACKS<span class="arrow">▶</span><small id="menuRank">Unranked • 0 packs</small></button>
+      <button class="btn" data-go="leaderboard">LEADERBOARD<span class="arrow">▶</span><small id="menuLB">See the top pilots</small></button>
+      <button class="btn" data-go="friends">FRIENDS<span class="arrow">▶</span><small id="menuFriends">Add real players you know</small></button>
+      <button class="btn" data-go="shop">ITEM SHOP<span class="arrow">▶</span><small id="menuShop">Buy skins with coins</small></button>
+      <button class="btn" data-go="inventory">INVENTORY<span class="arrow">▶</span><small>Equip ships, weapons, trails & skins</small></button>
+      <button class="btn" data-go="settings">SETTINGS<span class="arrow">▶</span><small>Controls, sound & difficulty</small></button>
+    </div>
+  </div>
+
+  <!-- LEVEL SELECT -->
+  <div class="screen hidden" id="screen-levels">
+    <div class="panel-header">
+      <div class="pixel">SELECT SKY</div>
+      <button class="back-btn" data-go="menu">◀ BACK</button>
+    </div>
+    <div class="content-box">
+      <div class="level-grid" id="levelGrid"></div>
+    </div>
+  </div>
+
+  <!-- BATTLE PASS -->
+  <div class="screen hidden" id="screen-battlepass">
+    <div class="panel-header">
+      <div class="pixel">BATTLE PASS</div>
+      <button class="back-btn" data-go="menu">◀ BACK</button>
+    </div>
+    <div class="content-box">
+      <div class="bp-progress-wrap">
+        <div class="bp-bar-track"><div class="bp-bar-fill" id="bpBarFill" style="width:0%"></div></div>
+        <div class="bp-meta"><span id="bpTierLabel">Tier 0 / 90</span><span id="bpXPLabel">0 XP</span></div>
+      </div>
+      <div class="bp-track" id="bpTrack"></div>
+    </div>
+  </div>
+
+  <!-- RANKS & REWARD PACKS -->
+  <div class="screen hidden" id="screen-ranks">
+    <div class="panel-header">
+      <div class="pixel">RANK &amp; PACKS</div>
+      <button class="back-btn" data-go="menu">◀ BACK</button>
+    </div>
+    <div class="content-box">
+      <div class="rank-hero">
+        <div class="rank-badge" id="rankHeroBadge">🥉</div>
+        <div class="rank-hero-info">
+          <div class="rank-hero-name" id="rankHeroName">UNRANKED</div>
+          <div class="rank-hero-sub" id="rankHeroSub">Win levels to earn rank XP</div>
+          <div class="rank-hero-sub" id="rankLuckLine" style="color:var(--amber);margin-top:4px;">Reward Pack luck bonus: +0%</div>
+        </div>
+      </div>
+      <div class="rank-track" id="rankTrack"></div>
+      <div class="pack-section">
+        <div>
+          <div class="pack-coins" id="packCoins">Coins: 0</div>
+          <div class="pack-count" id="packCount">Reward Packs: 0</div>
+        </div>
+        <div class="pack-btns">
+          <button class="btn primary" id="openPackBtn">OPEN PACK</button>
+          <button class="btn" id="buyPackBtn">BUY PACK — 350c</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div class="screen hidden" id="screen-leaderboard">
+    <div class="panel-header">
+      <div class="pixel">LEADERBOARD</div>
+      <button class="back-btn" data-go="menu">◀ BACK</button>
+    </div>
+    <div class="content-box">
+      <div class="lb-countdown" id="lbCountdown">Real players only — you, your added friends, and the Gang Leader.</div>
+      <div id="lbList"></div>
+      <button class="btn" data-go="friends" style="width:100%;margin-top:14px;text-align:center;">➕ ADD / MANAGE FRIENDS</button>
+    </div>
+  </div>
+
+  <!-- FRIENDS -->
+  <div class="screen hidden" id="screen-friends">
+    <div class="panel-header">
+      <div class="pixel">FRIENDS</div>
+      <button class="back-btn" data-go="menu">◀ BACK</button>
+    </div>
+    <div class="content-box">
+      <div class="friend-block">
+        <div class="friend-block-title">YOUR CODE</div>
+        <div class="friend-sub">Send this to a friend so they can add you. It updates with your latest score each time you open this screen.</div>
+        <textarea id="myFriendCode" class="friend-code-box" readonly rows="3"></textarea>
+        <button class="btn" id="copyFriendCodeBtn" style="width:100%;margin-top:8px;text-align:center;">📋 COPY MY CODE</button>
+      </div>
+      <div class="friend-block">
+        <div class="friend-block-title">ADD A FRIEND</div>
+        <div class="friend-sub">Paste a code your friend sent you.</div>
+        <textarea id="friendCodeInput" class="friend-code-box" rows="3" placeholder="Paste friend code here..."></textarea>
+        <div id="friendAddError" class="friend-error"></div>
+        <button class="btn primary" id="addFriendBtn" style="width:100%;margin-top:8px;text-align:center;">ADD FRIEND</button>
+      </div>
+      <div class="friend-block">
+        <div class="friend-block-title">YOUR FRIENDS</div>
+        <div id="friendsList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RANKED MODE INTRO -->
+  <div class="screen hidden" id="screen-ranked">
+    <div class="panel-header">
+      <div class="pixel">RANKED MODE</div>
+      <button class="back-btn" data-go="menu">◀ BACK</button>
+    </div>
+    <div class="content-box" style="text-align:center;">
+      <div style="font-size:12px;color:var(--text-dim);line-height:1.6;">Endless survival. Enemies get tougher the longer you last.<br>Your best score counts toward the Leaderboard.</div>
+      <div class="ranked-best" id="rankedBestLabel">Best score: 0</div>
+      <button class="btn primary" id="startRankedBtn" style="width:220px;margin:0 auto;text-align:center;">START RUN</button>
+    </div>
+  </div>
+
+  <!-- ITEM SHOP -->
+  <div class="screen hidden" id="screen-shop">
+    <div class="panel-header">
+      <div class="pixel">ITEM SHOP</div>
+      <button class="back-btn" data-go="menu">◀ BACK</button>
+    </div>
+    <div class="content-box">
+      <div class="shop-header-row">
+        <div>
+          <div class="pack-coins" id="shopCoins">Coins: 0</div>
+          <div class="shop-refresh-sub" id="shopRefreshSub">Free reshuffle available</div>
+        </div>
+        <button class="btn" id="shopRerollBtn" style="width:170px;text-align:center;font-size:10px;">🔀 SHUFFLE SHOP</button>
+      </div>
+      <div class="shop-grid" id="shopGrid"></div>
+    </div>
+  </div>
+
+  <!-- Ranked run over overlay -->
+  <div class="overlay-panel hidden" id="rankedOverPanel">
+    <div class="pixel big" style="color:var(--red)">RUN OVER</div>
+    <div class="stat-line" id="rankedOverStats"></div>
+    <div class="overlay-btns">
+      <button class="btn primary" id="rankedAgainBtn">PLAY AGAIN</button>
+      <button class="btn" id="rankedMenuBtn">MAIN MENU</button>
+    </div>
+  </div>
+
+  <!-- Pack opening reveal -->
+  <div class="overlay-panel hidden" id="packModal" style="z-index:65;">
+    <div class="pack-stage">
+      <div class="pack-box" id="packBox" style="--pc:var(--cyan)">📦</div>
+    </div>
+    <div class="pack-result-rarity hidden" id="packRarity">RARE</div>
+    <div class="pack-result-name hidden" id="packSkinName">Skin Name</div>
+    <div class="pack-result-dup hidden" id="packDup"></div>
+    <div class="overlay-btns">
+      <button class="btn primary hidden" id="packContinueBtn" style="width:180px;text-align:center;">CONTINUE</button>
+    </div>
+  </div>
+
+  <!-- Battle pass item detail modal -->
+  <div class="overlay-panel hidden" id="bpModal" style="z-index:60;">
+    <div class="content-box" style="max-width:340px;text-align:center;">
+      <div style="font-size:44px;" id="bpmIcon">🛡️</div>
+      <div class="pixel" style="font-size:13px;margin-top:10px;" id="bpmName">Item</div>
+      <div style="font-size:10px;letter-spacing:1px;margin-top:6px;text-transform:uppercase;" id="bpmRarity">common</div>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:12px;" id="bpmTier">Tier 1 / 90</div>
+      <div style="font-size:12px;margin-top:8px;" id="bpmStats"></div>
+      <div style="margin-top:18px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <button class="btn primary hidden" id="bpmEquipBtn" style="width:150px;text-align:center;">EQUIP</button>
+        <button class="back-btn" id="bpmCloseBtn">CLOSE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- INVENTORY -->
+  <div class="screen hidden" id="screen-inventory">
+    <div class="panel-header">
+      <div class="pixel">INVENTORY</div>
+      <button class="back-btn" data-go="menu">◀ BACK</button>
+    </div>
+    <div class="content-box">
+      <div class="inv-tabs">
+        <div class="inv-tab active" data-tab="ship">SHIPS</div>
+        <div class="inv-tab" data-tab="weapon">WEAPONS</div>
+        <div class="inv-tab" data-tab="trail">TRAILS</div>
+        <div class="inv-tab" data-tab="shield">SHIELDS</div>
+        <div class="inv-tab" data-tab="skin">SKINS</div>
+      </div>
+      <div class="inv-grid" id="invGrid"></div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="screen hidden" id="screen-settings">
+    <div class="panel-header">
+      <div class="pixel">SETTINGS</div>
+      <button class="back-btn" data-go="menu" id="settingsBack">◀ BACK</button>
+    </div>
+    <div class="content-box">
+      <div class="set-row">
+        <div class="set-label">Sound effects<small>Engine beeps & explosions</small></div>
+        <div class="toggle on" id="toggleSfx"><div class="knob"></div></div>
+      </div>
+      <div class="set-row">
+        <div class="set-label">Screen shake<small>Impact feedback on hits</small></div>
+        <div class="toggle on" id="toggleShake"><div class="knob"></div></div>
+      </div>
+      <div class="set-row">
+        <div class="set-label">Control scheme<small>Desktop keyboard layout</small></div>
+        <div class="seg" id="segControls">
+          <button data-val="arrows" class="active">ARROWS</button>
+          <button data-val="wasd">WASD</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="set-label">Difficulty<small>Enemy health & speed scaling</small></div>
+        <div class="seg" id="segDiff">
+          <button data-val="easy">EASY</button>
+          <button data-val="normal" class="active">NORMAL</button>
+          <button data-val="hard">HARD</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="set-label">Kill effect color<small>Hit-marker & elimination flash color</small></div>
+        <div class="seg color-seg" id="segKillColor">
+          <button data-val="white" class="active" style="--sw:#ffffff">WHITE</button>
+          <button data-val="red" style="--sw:#ff4d4d">RED</button>
+          <button data-val="blue" style="--sw:#4cc9f0">BLUE</button>
+          <button data-val="green" style="--sw:#7ee787">GREEN</button>
+        </div>
+      </div>
+      <button class="danger-btn" id="resetProgress">RESET ALL PROGRESS</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="scan"></div>
+<div class="vignette"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ===================== SAVE / STATE ===================== */
+const SAVE_KEY = "skyRelicSave_v1";
+const TOTAL_LEVELS = 100;
+const TOTAL_BP_TIERS = 90;
+
+function defaultSave(){
+  return {
+    unlockedLevel: 1,
+    bestLevel: 0,
+    bpXP: 0,
+    bpTier: 0,
+    coins: 0,
+    rank: 0,
+    rankXP: 0,
+    packs: 0,
+    nickname: null,
+    friendCode: null,
+    friends: [],
+    isLeader: false,
+    bestRankedScore: 0,
+    shop: { dayKey:null, offers:[], rerollCount:0, freeUsedToday:false },
+    inventory: { ship:["falcon0"], weapon:["twin0"], trail:["spark0"], shield:["aegis0"], skin:[] },
+    equipped: { ship:"falcon0", weapon:"twin0", trail:"spark0", shield:"aegis0", skin:null },
+    settings: { sfx:true, shake:true, controls:"arrows", difficulty:"normal", killColor:"white" }
+  };
+}
+let save = loadSave();
+function loadSave(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return defaultSave();
+    const parsed = JSON.parse(raw);
+    return Object.assign(defaultSave(), parsed, {
+      inventory: Object.assign(defaultSave().inventory, parsed.inventory||{}),
+      equipped: Object.assign(defaultSave().equipped, parsed.equipped||{}),
+      settings: Object.assign(defaultSave().settings, parsed.settings||{}),
+      shop: Object.assign(defaultSave().shop, parsed.shop||{})
+    });
+  }catch(e){ return defaultSave(); }
+}
+function persist(){
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }catch(e){}
+}
+
+/* ===================== ITEM / BATTLE PASS DEFINITIONS ===================== */
+const SHIP_NAMES = ["Falcon","Comet","Raptor","Phoenix","Nova","Vortex","Specter","Titan","Aurora","Wraith"];
+const WEAPON_NAMES = ["Twin Cannon","Laser Array","Plasma Burst","Rail Gun","Photon Spread","Quad Array","Quad Spread","Quantum Blaster","Star Shredder","Void Ripper"];
+const TRAIL_NAMES = ["Spark Trail","Blue Flame","Gold Dust","Ion Wake","Star Trail","Nebula Wake","Ember Trail","Prism Trail","Aurora Wake","Phantom Trail"];
+const SHIELD_NAMES = ["Aegis Barrier","Ion Ward","Photon Screen","Storm Wall","Nova Bulwark","Void Guard","Prism Aegis","Titan Plating","Star Ward","Genesis Shield"];
+const SHIP_ICONS = ["🛩️","✈️","🚀","🛸"];
+const WEAPON_ICONS = ["🔫","💥","⚡","🔷","✨"];
+const TRAIL_ICONS = ["🌟","🔥","💫","🌌","❇️"];
+const SHIELD_ICONS = ["🛡️","💠","🔵","⭐"];
+
+function rarityForTier(t){
+  if(t>=85) return "legendary";
+  if(t>=60) return "epic";
+  if(t>=30) return "rare";
+  return "common";
+}
+const RARITY_COLOR = { common:"var(--common)", rare:"var(--rare)", epic:"var(--epic)", legendary:"var(--legendary)" };
+const RARITY_MULT = { common:1, rare:1.6, epic:2.4, legendary:3.4 };
+
+// Build 90 battle pass tiers deterministically
+const BP_TIERS = [];
+(function buildBP(){
+  const types = ["ship","weapon","trail","shield"];
+  for(let t=1;t<=TOTAL_BP_TIERS;t++){
+    const type = types[t % 4];
+    const idx = Math.floor((t-1)/4) % 10;
+    const rarity = rarityForTier(t);
+    const mult = RARITY_MULT[rarity];
+    let id,name,icon,stats;
+    if(type==="ship"){
+      id = "falcon"+idx+"_"+t;
+      name = SHIP_NAMES[idx]+" Mk"+(Math.floor(t/9)+1);
+      icon = SHIP_ICONS[idx%SHIP_ICONS.length];
+      stats = { speed: +(0.4*mult).toFixed(2), maxHpBonus: t>=60?1:0 };
+    } else if(type==="weapon"){
+      id = "twin"+idx+"_"+t;
+      name = WEAPON_NAMES[idx];
+      icon = WEAPON_ICONS[idx%WEAPON_ICONS.length];
+      stats = { damage: +(0.5*mult).toFixed(2), fireRate: +(0.08*mult).toFixed(2) };
+    } else if(type==="shield"){
+      id = "aegis"+idx+"_"+t;
+      name = SHIELD_NAMES[idx];
+      icon = SHIELD_ICONS[idx%SHIELD_ICONS.length];
+      stats = { maxCharges: Math.min(4, 1+Math.floor(t/22)), regenTime: +(Math.max(4, 11-mult*1.8)).toFixed(1) };
+    } else {
+      id = "spark"+idx+"_"+t;
+      name = TRAIL_NAMES[idx];
+      icon = TRAIL_ICONS[idx%TRAIL_ICONS.length];
+      stats = { xpBonus: +(0.03*mult).toFixed(2) };
+    }
+    const xpReq = t*140 + Math.floor(t*t*1.5);
+    BP_TIERS.push({ tier:t, type, id, name, icon, rarity, stats, xpReq, idx });
+  }
+})();
+function bpCumulativeXP(tier){
+  let sum=0;
+  for(let i=0;i<tier;i++) sum += BP_TIERS[i].xpReq;
+  return sum;
+}
+const BP_TOTAL_XP = bpCumulativeXP(TOTAL_BP_TIERS);
+
+/* ===================== RANKS (Bronze/Silver/Gold/Emerald/Diamond I-IV + Champion) ===================== */
+const RANK_DIVISIONS = ["Bronze","Silver","Gold","Emerald","Diamond"];
+const RANK_NUMERALS = ["I","II","III","IV"];
+const RANK_DIVISION_COLOR = { Bronze:"#c97b45", Silver:"#c7d0e0", Gold:"#ffd166", Emerald:"#2ecc71", Diamond:"#7fe3f0", Champion:"#ffe066" };
+const RANK_DIVISION_ICON = { Bronze:"🥉", Silver:"🥈", Gold:"🥇", Emerald:"💚", Diamond:"💎", Champion:"🏆" };
+const TOTAL_RANKS = RANK_DIVISIONS.length * RANK_NUMERALS.length + 1; // +1 for the single top Champion tier
+const RANKS = [];
+(function buildRanks(){
+  let t=0;
+  RANK_DIVISIONS.forEach(div=>{
+    RANK_NUMERALS.forEach(num=>{
+      t++;
+      const xpReq = 240 + t*90 + Math.floor(t*t*10);
+      RANKS.push({ tier:t, division:div, numeral:num, name:div+" "+num, color:RANK_DIVISION_COLOR[div], icon:RANK_DIVISION_ICON[div], xpReq });
+    });
+  });
+  t++;
+  const champXp = 240 + t*90 + Math.floor(t*t*10) + 5000; // big final climb, like R6's Champion tier
+  RANKS.push({ tier:t, division:"Champion", numeral:"", name:"Champion", color:RANK_DIVISION_COLOR.Champion, icon:RANK_DIVISION_ICON.Champion, xpReq:champXp, isChampion:true });
+})();
+function rankCumulativeXP(tier){
+  let sum=0;
+  for(let i=0;i<tier;i++) sum += RANKS[i].xpReq;
+  return sum;
+}
+const RANK_TOTAL_XP = rankCumulativeXP(TOTAL_RANKS);
+function currentRankInfo(){
+  return save.rank>0 ? RANKS[save.rank-1] : { name:"UNRANKED", color:"#8a90b8", icon:"🎖️" };
+}
+function rankBadgeHtml(tier){
+  if(!tier || tier<=0) return '<span class="rank-badge-chip unranked" title="Unranked">—</span>';
+  const r = RANKS[Math.min(tier,TOTAL_RANKS)-1];
+  if(!r) return '';
+  return '<span class="rank-badge-chip'+(r.isChampion?" champion":"")+'" style="--rc:'+r.color+'" title="'+r.name+'">'+r.icon+'</span>';
+}
+function grantRankXP(amount){
+  if(save.rank>=TOTAL_RANKS){ persist(); return; }
+  save.rankXP += amount;
+  while(save.rank<TOTAL_RANKS && save.rankXP>=rankCumulativeXP(save.rank+1)){
+    save.rank++;
+    const name = RANKS[save.rank-1].name;
+    if(save.rank % 2 === 1){
+      // odd ranks: a seasonal Reward Pack
+      save.packs++;
+      showToast("RANK UP: "+name+" ★ +1 SEASONAL PACK");
+    } else {
+      // even ranks: an instant skin, rolled with your current rank's pack-luck odds
+      const rarity = rollSkinRarity();
+      const pool = skinsByRarity(rarity);
+      const skin = pool[Math.floor(Math.random()*pool.length)];
+      if(!save.inventory.skin.includes(skin.id)){
+        save.inventory.skin.push(skin.id);
+        showToast("RANK UP: "+name+" ★ NEW SKIN: "+skin.name.toUpperCase());
+      } else {
+        const coins = SKIN_RARITY_DUP_COINS[rarity]||20;
+        save.coins += coins;
+        showToast("RANK UP: "+name+" ★ DUPLICATE SKIN → +"+coins+" COINS");
+      }
+    }
+  }
+  persist();
+}
+
+/* ===================== SKINS & REWARD PACKS (R6 Alpha-Pack style) ===================== */
+const SKIN_RARITIES = ["common","uncommon","rare","epic","legendary","blackice"];
+const SKIN_RARITY_COLOR = { common:"#8a90b8", uncommon:"#7ee787", rare:"#4ce0d4", epic:"#a78bfa", legendary:"#ffb703", blackice:"#bff4ff" };
+const SKIN_RARITY_WEIGHT = { common:4250, uncommon:3000, rare:1800, epic:700, legendary:200, blackice:50 }; // out of 10000 → 42.5% / 30% / 18% / 7% / 2% / 0.5%
+const SKIN_RARITY_DUP_COINS = { common:20, uncommon:40, rare:90, epic:220, legendary:600, blackice:1500 };
+const PACK_COST = 350;
+function genNamePool(count, prefixes, suffixes){
+  const out=[];
+  for(let i=0;i<prefixes.length && out.length<count;i++){
+    for(let j=0;j<suffixes.length && out.length<count;j++){
+      out.push(prefixes[i]+" "+suffixes[j]);
+    }
+  }
+  return out;
+}
+const SKINS = [];
+(function buildSkins(){
+  const defs = [
+    { rarity:"common", count:34, icon:"🛩️",
+      colors:["#9aa3c9","#7d86ad","#b8bede","#6b7399","#8890b8","#aab0d1"],
+      prefixes:["Steel","Iron","Standard","Cloud","Sky","Basic"],
+      suffixes:["Wing","Hawk","Runner","Glider","Drifter","Cruiser","Falcon"] },
+    { rarity:"uncommon", count:24, icon:"✈️",
+      colors:["#5fd88f","#3fae72","#7ee787","#2f9e63","#8ef0a0","#46c17d"],
+      prefixes:["Azure","Jade","Storm","Wind","Copper","Silver"],
+      suffixes:["Strike","Blade","Talon","Raider","Voyager","Comet"] },
+    { rarity:"rare", count:16, icon:"🚀",
+      colors:["#4ce0d4","#37b8ae","#2fd6e8","#1fa8bd","#5be0f2","#17c3d6"],
+      prefixes:["Crimson","Arctic","Solar","Nova","Void","Violet"],
+      suffixes:["Fang","Spectre","Vanguard","Reaper","Zenith"] },
+    { rarity:"epic", count:10, icon:"🛸",
+      colors:["#a78bfa","#8b5cf6","#d946ef","#7c3aed","#c026d3","#9333ea","#a855f7","#6d28d9","#e879f9","#7e22ce"],
+      prefixes:["Inferno","Celestial","Shadow","Radiant","Quantum"],
+      suffixes:["Dominion","Ascendant","Overlord","Eclipse"] },
+    { rarity:"legendary", count:5, icon:"🌟",
+      colors:["#ffb703","#ff8f00","#ffd166","#ff6f3c","#ffcc33"],
+      names:["Phoenix Ascension","Dragon's Fury","Solar Eclipse","Midnight Reaper","Golden Emperor"] },
+    { rarity:"blackice", count:1, icon:"🧊",
+      colors:["#bff4ff"],
+      names:["Black Ice"] }
+  ];
+  defs.forEach(def=>{
+    const names = def.names || genNamePool(def.count, def.prefixes, def.suffixes);
+    for(let i=0;i<def.count;i++){
+      SKINS.push({
+        id:"skin_"+def.rarity+"_"+i,
+        name: names[i] || (def.rarity+" Skin "+(i+1)),
+        rarity: def.rarity,
+        color: def.colors[i % def.colors.length],
+        icon: def.icon
+      });
+    }
+  });
+})();
+function skinById(id){ return SKINS.find(s=>s.id===id); }
+function skinsByRarity(r){ return SKINS.filter(s=>s.rarity===r); }
+function rankPackBonus(){
+  // 0 at Unranked, climbing to 1 at Champion — every rank-up makes packs a little more generous
+  return Math.min(1, save.rank / TOTAL_RANKS);
+}
+function rollSkinRarity(){
+  const bonus = rankPackBonus();
+  const w = {
+    common:    SKIN_RARITY_WEIGHT.common    * (1 - bonus*0.55),
+    uncommon:  SKIN_RARITY_WEIGHT.uncommon  * (1 - bonus*0.25),
+    rare:      SKIN_RARITY_WEIGHT.rare      * (1 + bonus*0.9),
+    epic:      SKIN_RARITY_WEIGHT.epic      * (1 + bonus*2.2),
+    legendary: SKIN_RARITY_WEIGHT.legendary * (1 + bonus*3.5),
+    blackice:  SKIN_RARITY_WEIGHT.blackice  * (1 + bonus*4)
+  };
+  const total = SKIN_RARITIES.reduce((a,r)=>a+w[r],0);
+  let roll = Math.random()*total;
+  for(const r of SKIN_RARITIES){
+    roll -= w[r];
+    if(roll<=0) return r;
+  }
+  return "common";
+}
+function openPack(){
+  if(save.packs<=0) return null;
+  save.packs--;
+  const rarity = rollSkinRarity();
+  const pool = skinsByRarity(rarity);
+  const skin = pool[Math.floor(Math.random()*pool.length)];
+  const isDup = save.inventory.skin.includes(skin.id);
+  let coinsGained = 0;
+  if(isDup){
+    coinsGained = SKIN_RARITY_DUP_COINS[rarity];
+    save.coins += coinsGained;
+  } else {
+    save.inventory.skin.push(skin.id);
+  }
+  persist();
+  return { skin, rarity, isDup, coinsGained };
+}
+function buyPack(){
+  if(save.coins<PACK_COST) return false;
+  save.coins -= PACK_COST;
+  save.packs++;
+  persist();
+  return true;
+}
+function isBlackIceEquipped(){
+  const sk = save.equipped.skin ? skinById(save.equipped.skin) : null;
+  return !!(sk && sk.rarity==="blackice");
+}
+/* Animated visual identity for the 5 Legendary skins + Black Ice — themed colors, aura ring, and trail particles */
+const SKIN_FX = {
+  "skin_legendary_0": { type:"phoenix", ring:"#ff6a2b", c0:"#fff3c4", c1:"#ff8a3d", c2:"#7a1400", trail:"#ff8a3d" },
+  "skin_legendary_1": { type:"dragon",  ring:"#8b5cf6", c0:"#c9ffb0", c1:"#5fd88f", c2:"#3a1466", trail:"#9c6bff" },
+  "skin_legendary_2": { type:"eclipse", ring:"#ffd166", c0:"#ffe9a8", c1:"#2a2410", c2:"#050400", trail:"#ffcc33" },
+  "skin_legendary_3": { type:"reaper",  ring:"#7b2cbf", c0:"#d9b8ff", c1:"#3a1560", c2:"#0a0212", trail:"#b967ff" },
+  "skin_legendary_4": { type:"emperor", ring:"#ffd700", c0:"#fff9dc", c1:"#ffd23f", c2:"#8a5a00", trail:"#ffe066" },
+  "skin_blackice_0":  { type:"blackice", ring:"#bff4ff", c0:"#ffffff", c1:"#bff4ff", c2:"#0b1830", trail:"#bff4ff" }
+};
+function getEquippedSkinFx(){
+  return save.equipped.skin ? (SKIN_FX[save.equipped.skin]||null) : null;
+}
+function shadeColor(hex, percent){
+  const num = parseInt(hex.replace("#",""),16);
+  let r = (num>>16) + Math.round(255*percent);
+  let g = ((num>>8)&0xff) + Math.round(255*percent);
+  let b = (num&0xff) + Math.round(255*percent);
+  r=Math.min(255,Math.max(0,r)); g=Math.min(255,Math.max(0,g)); b=Math.min(255,Math.max(0,b));
+  return "#"+(0x1000000+r*0x10000+g*0x100+b).toString(16).slice(1);
+}
+/* Ship silhouette variants — wings + fuselage outline drawn in local ship space (nose at y=-22..-26, tail ~y=20) */
+const HULL_SHAPES = [
+  { // 0 — standard falcon (default look, used by ships with no skin equipped)
+    wings:(ctx,c)=>{
+      ctx.fillStyle=c;
+      ctx.beginPath(); ctx.moveTo(-4,-2); ctx.lineTo(-24,12); ctx.lineTo(-16,16); ctx.lineTo(-4,6); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(4,-2); ctx.lineTo(24,12); ctx.lineTo(16,16); ctx.lineTo(4,6); ctx.closePath(); ctx.fill();
+    },
+    fuselage:(ctx)=>{
+      ctx.beginPath();
+      ctx.moveTo(0,-22); ctx.quadraticCurveTo(6,-14,5,2); ctx.lineTo(5,14);
+      ctx.quadraticCurveTo(0,19,-5,14); ctx.lineTo(-5,2); ctx.quadraticCurveTo(-6,-14,0,-22);
+      ctx.closePath();
+    }
+  },
+  { // 1 — delta wing (single continuous swept triangle)
+    wings:(ctx,c)=>{
+      ctx.fillStyle=c;
+      ctx.beginPath(); ctx.moveTo(0,-4); ctx.lineTo(-30,18); ctx.lineTo(-10,18); ctx.lineTo(0,4); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(0,-4); ctx.lineTo(30,18); ctx.lineTo(10,18); ctx.lineTo(0,4); ctx.closePath(); ctx.fill();
+    },
+    fuselage:(ctx)=>{
+      ctx.beginPath();
+      ctx.moveTo(0,-24); ctx.lineTo(4,0); ctx.lineTo(4,15); ctx.lineTo(0,20); ctx.lineTo(-4,15); ctx.lineTo(-4,0);
+      ctx.closePath();
+    }
+  },
+  { // 2 — interceptor (needle nose, thin swept wings set further aft)
+    wings:(ctx,c)=>{
+      ctx.fillStyle=c;
+      ctx.beginPath(); ctx.moveTo(-3,4); ctx.lineTo(-22,14); ctx.lineTo(-14,17); ctx.lineTo(-3,10); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(3,4); ctx.lineTo(22,14); ctx.lineTo(14,17); ctx.lineTo(3,10); ctx.closePath(); ctx.fill();
+    },
+    fuselage:(ctx)=>{
+      ctx.beginPath();
+      ctx.moveTo(0,-27); ctx.lineTo(3,-4); ctx.lineTo(3,15); ctx.quadraticCurveTo(0,19,-3,15); ctx.lineTo(-3,-4);
+      ctx.closePath();
+    }
+  },
+  { // 3 — stealth (angular faceted diamond fuselage, straight-edge wings)
+    wings:(ctx,c)=>{
+      ctx.fillStyle=c;
+      ctx.beginPath(); ctx.moveTo(-2,0); ctx.lineTo(-26,10); ctx.lineTo(-20,15); ctx.lineTo(-2,8); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(2,0); ctx.lineTo(26,10); ctx.lineTo(20,15); ctx.lineTo(2,8); ctx.closePath(); ctx.fill();
+    },
+    fuselage:(ctx)=>{
+      ctx.beginPath();
+      ctx.moveTo(0,-20); ctx.lineTo(6,-2); ctx.lineTo(4,16); ctx.lineTo(0,20); ctx.lineTo(-4,16); ctx.lineTo(-6,-2);
+      ctx.closePath();
+    }
+  },
+  { // 4 — heavy gunship (wide barrel body, big stabilizers)
+    wings:(ctx,c)=>{
+      ctx.fillStyle=c;
+      ctx.beginPath(); ctx.moveTo(-5,-4); ctx.lineTo(-28,8); ctx.lineTo(-24,18); ctx.lineTo(-5,10); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(5,-4); ctx.lineTo(28,8); ctx.lineTo(24,18); ctx.lineTo(5,10); ctx.closePath(); ctx.fill();
+    },
+    fuselage:(ctx)=>{
+      ctx.beginPath();
+      ctx.moveTo(0,-20); ctx.quadraticCurveTo(8,-10,7,4); ctx.lineTo(7,15);
+      ctx.quadraticCurveTo(0,20,-7,15); ctx.lineTo(-7,4); ctx.quadraticCurveTo(-8,-10,0,-20);
+      ctx.closePath();
+    }
+  },
+  { // 5 — ace hull (sleek prestige frame with canard fins, reserved for Legendary/Black Ice)
+    wings:(ctx,c)=>{
+      ctx.fillStyle=c;
+      ctx.beginPath(); ctx.moveTo(-3,-8); ctx.lineTo(-14,-2); ctx.lineTo(-10,2); ctx.lineTo(-3,0); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(3,-8); ctx.lineTo(14,-2); ctx.lineTo(10,2); ctx.lineTo(3,0); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-3,2); ctx.lineTo(-22,14); ctx.lineTo(-14,17); ctx.lineTo(-3,9); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(3,2); ctx.lineTo(22,14); ctx.lineTo(14,17); ctx.lineTo(3,9); ctx.closePath(); ctx.fill();
+    },
+    fuselage:(ctx)=>{
+      ctx.beginPath();
+      ctx.moveTo(0,-25); ctx.quadraticCurveTo(4,-14,3,2); ctx.lineTo(3,15);
+      ctx.quadraticCurveTo(0,20,-3,15); ctx.lineTo(-3,2); ctx.quadraticCurveTo(-4,-14,0,-25);
+      ctx.closePath();
+    }
+  }
+];
+/* Decal overlays drawn on top of the fuselage — combined with hull shape, these make every skin read as distinct */
+const ACCENT_PATTERNS = [
+  null, // 0 — none (plain fuselage)
+  (ctx,c)=>{ // 1 — diagonal racing stripe
+    ctx.save(); ctx.globalAlpha=0.85; ctx.fillStyle=c;
+    ctx.beginPath(); ctx.moveTo(-5,-6); ctx.lineTo(-1,-6); ctx.lineTo(3,16); ctx.lineTo(-1,16); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  },
+  (ctx,c)=>{ // 2 — nose chevrons
+    ctx.save(); ctx.strokeStyle=c; ctx.lineWidth=2.2; ctx.globalAlpha=0.9;
+    ctx.beginPath(); ctx.moveTo(-4,-10); ctx.lineTo(0,-4); ctx.lineTo(4,-10); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-4,-2); ctx.lineTo(0,4); ctx.lineTo(4,-2); ctx.stroke();
+    ctx.restore();
+  },
+  (ctx,c)=>{ // 3 — dual-tone split panel
+    ctx.save(); ctx.globalAlpha=0.5; ctx.fillStyle=c;
+    ctx.beginPath(); ctx.moveTo(0,-22); ctx.lineTo(6,-10); ctx.lineTo(5,14); ctx.lineTo(0,19); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  },
+  (ctx,c)=>{ // 4 — dot row
+    ctx.save(); ctx.fillStyle=c; ctx.globalAlpha=0.9;
+    for(let i=0;i<4;i++){ ctx.beginPath(); ctx.arc(0,-10+i*7,1.3,0,Math.PI*2); ctx.fill(); }
+    ctx.restore();
+  }
+];
+function getSkinLook(){
+  if(!save.equipped.skin) return { hull:0, accent:0, accentColor:null };
+  const skin = skinById(save.equipped.skin);
+  if(!skin) return { hull:0, accent:0, accentColor:null };
+  if(skin.rarity==="legendary" || skin.rarity==="blackice") return { hull:5, accent:0, accentColor:null };
+  const idx = parseInt(skin.id.split("_").pop(),10) || 0;
+  let hullPool, accentPool;
+  switch(skin.rarity){
+    case "common":   hullPool=[0];       accentPool=[0,1];       break;
+    case "uncommon": hullPool=[0,2];     accentPool=[0,1,2];     break;
+    case "rare":     hullPool=[1,2,3];   accentPool=[1,2,3,4];   break;
+    case "epic":     hullPool=[1,2,3,4]; accentPool=[1,2,3];     break;
+    default:         hullPool=[0];       accentPool=[0];
+  }
+  const hull = hullPool[idx % hullPool.length];
+  const accent = accentPool[idx % accentPool.length];
+  const accentColor = shadeColor(skin.color, 0.4);
+  return { hull, accent, accentColor };
+}
+function applyLeaderPerks(){
+  if(!save.nickname || save.nickname.toLowerCase()!=="ttvsavage") return;
+  save.isLeader = true;
+  let added=false;
+  SKINS.forEach(s=>{ if(!save.inventory.skin.includes(s.id)){ save.inventory.skin.push(s.id); added=true; } });
+  persist();
+  return added;
+}
+
+/* ===================== SEEDED RNG (deterministic leaderboard/shop) ===================== */
+function hashStr(s){
+  let h=0;
+  for(let i=0;i<s.length;i++){ h = (h*31 + s.charCodeAt(i))|0; }
+  return h>>>0;
+}
+function mulberry32(seed){
+  let a = seed>>>0;
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a>>>15, 1 | a);
+    t = t + Math.imul(t ^ t>>>7, 61 | t) ^ t;
+    return ((t ^ t>>>14) >>> 0) / 4294967296;
+  };
+}
+
+/* ===================== NICKNAME REGISTRY (best-effort uniqueness, this device only) ===================== */
+const NICK_REGISTRY_KEY = "skyRelicNicknames_v1";
+function loadNickRegistry(){
+  try{ return JSON.parse(localStorage.getItem(NICK_REGISTRY_KEY)||"[]"); }catch(e){ return []; }
+}
+function saveNickRegistry(list){
+  try{ localStorage.setItem(NICK_REGISTRY_KEY, JSON.stringify(list)); }catch(e){}
+}
+function isNicknameTaken(name){
+  const lower = name.toLowerCase();
+  const reg = loadNickRegistry();
+  if(reg.some(n=>n.toLowerCase()===lower && lower!==(save.nickname||"").toLowerCase())) return true;
+  if((save.friends||[]).some(f=>f.name.toLowerCase()===lower)) return true;
+  return false;
+}
+function claimNickname(name){
+  const clean = name.trim().replace(/\s+/g," ").slice(0,16);
+  if(clean.length<3) return { ok:false, error:"3 characters minimum." };
+  if(!/^[A-Za-z0-9_\-\.]+$/.test(clean)) return { ok:false, error:"Letters, numbers, _ - . only." };
+  if(isNicknameTaken(clean)) return { ok:false, error:"That callsign is already taken." };
+  const reg = loadNickRegistry();
+  if(!reg.some(n=>n.toLowerCase()===clean.toLowerCase())) reg.push(clean);
+  saveNickRegistry(reg);
+  save.nickname = clean;
+  persist();
+  applyLeaderPerks();
+  return { ok:true };
+}
+
+/* ===================== FRIENDS (real players only — added via shareable code, no bots) ===================== */
+function ensureFriendCode(){
+  if(!save.friendCode){
+    save.friendCode = "SR-"+Math.random().toString(36).slice(2,6).toUpperCase()+"-"+Math.random().toString(36).slice(2,6).toUpperCase();
+    persist();
+  }
+  return save.friendCode;
+}
+function computePlayerScore(){
+  return save.bestLevel*120 + save.bpTier*90 + save.rank*260 + save.bestRankedScore;
+}
+function myShareCode(){
+  ensureFriendCode();
+  const payload = { v:1, id:save.friendCode, n: save.nickname||"Pilot", s: computePlayerScore(), rk: save.rank||0, t: Date.now() };
+  try{ return btoa(unescape(encodeURIComponent(JSON.stringify(payload)))); }
+  catch(e){ return ""; }
+}
+function importFriendCode(codeStr){
+  let data;
+  try{ data = JSON.parse(decodeURIComponent(escape(atob(codeStr.trim())))); }
+  catch(e){ return { ok:false, error:"That code looks invalid or corrupted." }; }
+  if(!data || data.v!==1 || !data.id || !data.n) return { ok:false, error:"That code looks invalid or corrupted." };
+  ensureFriendCode();
+  if(data.id === save.friendCode) return { ok:false, error:"That's your own code!" };
+  if(!save.friends) save.friends=[];
+  if(save.nickname && data.n.toLowerCase()===save.nickname.toLowerCase() && data.id!==save.friendCode){
+    return { ok:false, error:"That callsign matches yours — codes must be from a different real player." };
+  }
+  const idx = save.friends.findIndex(f=>f.id===data.id);
+  const entry = { id:data.id, name:data.n, score:Number(data.s)||0, rank:Number(data.rk)||0, updatedAt:data.t||Date.now() };
+  if(idx>=0) save.friends[idx]=entry; else save.friends.push(entry);
+  persist();
+  return { ok:true, name:data.n };
+}
+function removeFriend(id){
+  save.friends = (save.friends||[]).filter(f=>f.id!==id);
+  persist();
+  renderFriends();
+  renderLeaderboard();
+}
+function renderFriends(){
+  const codeBox = document.getElementById("myFriendCode");
+  codeBox.value = myShareCode();
+  const list = document.getElementById("friendsList");
+  const friends = save.friends||[];
+  if(!friends.length){
+    list.innerHTML = '<div class="friend-empty">No friends added yet — share your code above to get started.</div>';
+  } else {
+    list.innerHTML="";
+    friends.slice().sort((a,b)=>b.score-a.score).forEach(f=>{
+      const row = document.createElement("div");
+      row.className="friend-row";
+      const d = new Date(f.updatedAt);
+      row.innerHTML = '<div class="fname">'+rankBadgeHtml(f.rank)+escapeHtml(f.name)+'</div><div class="fscore">'+f.score.toLocaleString()+'</div><button class="fremove">REMOVE</button>';
+      row.querySelector(".fremove").addEventListener("click", ()=> removeFriend(f.id));
+      list.appendChild(row);
+    });
+  }
+}
+document.getElementById("copyFriendCodeBtn").addEventListener("click", ()=>{
+  const box = document.getElementById("myFriendCode");
+  box.select(); box.setSelectionRange(0, 99999);
+  let copied=false;
+  try{ if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(box.value); copied=true; } }catch(e){}
+  if(!copied){ try{ document.execCommand("copy"); copied=true; }catch(e){} }
+  showToast(copied ? "CODE COPIED" : "SELECT & COPY MANUALLY");
+});
+document.getElementById("addFriendBtn").addEventListener("click", ()=>{
+  const input = document.getElementById("friendCodeInput");
+  const err = document.getElementById("friendAddError");
+  const result = importFriendCode(input.value);
+  if(!result.ok){ err.textContent = result.error; return; }
+  err.textContent="";
+  input.value="";
+  showToast("ADDED FRIEND: "+result.name.toUpperCase());
+  renderFriends();
+  renderLeaderboard();
+});
+
+/* ===================== LEADERBOARD — real players only: you, your added friends, and the reserved Gang Leader ===================== */
+function buildLeaderboard(){
+  const list = [];
+  list.push({ name:"ttvsavage", score:999999, leader:true, rank:TOTAL_RANKS });
+  (save.friends||[]).forEach(f=> list.push({ name:f.name, score:f.score, rank:f.rank||0, friend:true }));
+  if(save.nickname){
+    const lower = save.nickname.toLowerCase();
+    const idx = list.findIndex(e=>e.name.toLowerCase()===lower);
+    const myScore = computePlayerScore();
+    if(idx>=0){
+      list[idx] = Object.assign({}, list[idx], { isMe:true, score: Math.max(list[idx].score, myScore), rank: save.isLeader?TOTAL_RANKS:save.rank });
+    } else {
+      list.push({ name: save.nickname, score: myScore, rank: save.rank, isMe:true, leader: save.isLeader });
+    }
+  }
+  list.sort((a,b)=>b.score-a.score);
+  return list;
+}
+function renderLeaderboard(){
+  const list = buildLeaderboard();
+  const wrap = document.getElementById("lbList");
+  wrap.innerHTML="";
+  if(list.length<=1 && !(save.friends||[]).length){
+    wrap.innerHTML = '<div class="friend-empty">Add friends to build out your leaderboard — tap the button below.</div>';
+  }
+  list.slice(0,25).forEach((e,i)=>{
+    const row = document.createElement("div");
+    row.className = "lb-row"+(e.isMe?" me":"")+(i===0?" top1":"");
+    row.innerHTML = '<div class="lb-rank">#'+(i+1)+'</div><div class="lb-name">'+rankBadgeHtml(e.rank)+escapeHtml(e.name)+(e.leader?'<span class="gang-badge">👑 GANG</span>':(e.isMe?' <span style="color:var(--text-dim);font-size:9px;">(you)</span>':''))+'</div><div class="lb-score">'+e.score.toLocaleString()+'</div>';
+    wrap.appendChild(row);
+  });
+}
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ===================== ITEM SHOP ===================== */
+const SHOP_PRICE = { common:150, uncommon:320, rare:650, epic:1500, legendary:3200 };
+function shopDayKey(){
+  const d = new Date();
+  return d.getFullYear()+"-"+d.getMonth()+"-"+d.getDate();
+}
+function generateShopOffers(seedStr){
+  const rng = mulberry32(hashStr(seedStr));
+  const rarityPlan = ["common","common","uncommon","uncommon","rare","epic"];
+  const used = new Set();
+  const offers = [];
+  rarityPlan.forEach(rarity=>{
+    const pool = skinsByRarity(rarity).filter(s=>!used.has(s.id));
+    if(!pool.length) return;
+    const pick = pool[Math.floor(rng()*pool.length)];
+    used.add(pick.id);
+    offers.push(pick.id);
+  });
+  return offers;
+}
+function ensureShopFresh(){
+  const key = shopDayKey();
+  if(save.shop.dayKey !== key){
+    save.shop.dayKey = key;
+    save.shop.rerollCount = 0;
+    save.shop.freeUsedToday = false;
+    save.shop.offers = generateShopOffers(key+":0");
+    persist();
+  } else if(!save.shop.offers || !save.shop.offers.length){
+    save.shop.offers = generateShopOffers(key+":0");
+    persist();
+  }
+}
+function rerollShop(){
+  const cost = save.shop.freeUsedToday ? 60 : 0;
+  if(cost>0 && save.coins<cost){ showToast("NOT ENOUGH COINS"); return false; }
+  if(cost>0) save.coins -= cost; else save.shop.freeUsedToday = true;
+  save.shop.rerollCount = (save.shop.rerollCount||0)+1;
+  save.shop.offers = generateShopOffers(save.shop.dayKey+":"+save.shop.rerollCount);
+  persist();
+  return true;
+}
+function buySkin(id){
+  const skin = skinById(id);
+  if(!skin) return;
+  if(save.inventory.skin.includes(id)){ showToast("ALREADY OWNED"); return; }
+  const price = SHOP_PRICE[skin.rarity]||9999;
+  if(save.coins<price){ showToast("NOT ENOUGH COINS"); return; }
+  save.coins -= price;
+  save.inventory.skin.push(id);
+  persist();
+  showToast("PURCHASED: "+skin.name);
+  renderShop();
+}
+function renderShop(){
+  ensureShopFresh();
+  document.getElementById("shopCoins").textContent = "Coins: "+save.coins;
+  document.getElementById("shopRefreshSub").textContent = save.shop.freeUsedToday
+    ? "Next shuffle costs 60 coins"
+    : "Free reshuffle available today";
+  buildShopCards();
+}
+function buildShopCards(){
+  const grid = document.getElementById("shopGrid");
+  grid.innerHTML="";
+  save.shop.offers.forEach(id=>{
+    const skin = skinById(id);
+    if(!skin) return;
+    const owned = save.inventory.skin.includes(id);
+    const price = SHOP_PRICE[skin.rarity]||9999;
+    const isEpicPlus = skin.rarity==="legendary" || skin.rarity==="blackice";
+    const card = document.createElement("div");
+    card.className = "shop-card"+(isEpicPlus?" fx-card":"");
+    if(isEpicPlus) card.style.setProperty("--fxc", SKIN_RARITY_COLOR[skin.rarity]);
+    card.innerHTML = '<div class="icon">'+skin.icon+'</div><div class="sname">'+skin.name+'</div><div class="srarity" style="color:'+SKIN_RARITY_COLOR[skin.rarity]+'">'+skin.rarity.toUpperCase()+'</div><div class="sprice">'+(owned?"OWNED":price+"c")+'</div><button '+(owned||save.coins<price?"disabled":"")+'>'+(owned?"EQUIPPED IN INVENTORY":"BUY")+'</button>';
+    if(!owned){
+      card.querySelector("button").addEventListener("click", ()=> buySkin(id));
+    }
+    grid.appendChild(card);
+  });
+}
+document.getElementById("shopRerollBtn").addEventListener("click", ()=>{
+  const grid = document.getElementById("shopGrid");
+  const cards = Array.from(grid.children);
+  cards.forEach(c=>c.classList.add("shuffle-out"));
+  setTimeout(()=>{
+    if(rerollShop()){
+      document.getElementById("shopCoins").textContent = "Coins: "+save.coins;
+      document.getElementById("shopRefreshSub").textContent = save.shop.freeUsedToday
+        ? "Next shuffle costs 60 coins" : "Free reshuffle available today";
+      buildShopCards();
+      const newCards = Array.from(grid.children);
+      newCards.forEach(c=>c.classList.add("shuffle-in"));
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        newCards.forEach(c=>c.classList.remove("shuffle-in"));
+      }));
+    } else {
+      cards.forEach(c=>c.classList.remove("shuffle-out"));
+    }
+  }, 220);
+});
+
+function itemById(id){
+  if(id==="falcon0") return { id:"falcon0", type:"ship", name:"Falcon Mk1", icon:"🛩️", rarity:"common", stats:{speed:0,maxHpBonus:0}, idx:0 };
+  if(id==="twin0") return { id:"twin0", type:"weapon", name:"Twin Cannon", icon:"🔫", rarity:"common", stats:{damage:0,fireRate:0}, idx:0 };
+  if(id==="spark0") return { id:"spark0", type:"trail", name:"Spark Trail", icon:"🌟", rarity:"common", stats:{xpBonus:0}, idx:0 };
+  if(id==="aegis0") return { id:"aegis0", type:"shield", name:"No Shield", icon:"🛡️", rarity:"common", stats:{maxCharges:0,regenTime:99}, idx:0 };
+  return BP_TIERS.find(b=>b.id===id);
+}
+
+/* ---- Visual / behavioral identity per weapon family & ship family ---- */
+const SHIP_COLORS = ["#4ce0d4","#60a5fa","#f97316","#ef4444","#a78bfa","#22d3ee","#cbd5e1","#facc15","#34d399","#f472b6"];
+const TRAIL_COLORS = ["#4ce0d4","#3b82f6","#fbbf24","#22d3ee","#e2e8f0","#a78bfa","#fb7185","#f472b6","#34d399","#94a3b8"];
+// Each weapon family fires a genuinely different pattern, not just different numbers.
+const WEAPON_PATTERNS = [
+  { name:"Twin Cannon",   shots:[{a:0,x:-8},{a:0,x:8}], color:"#4ce0d4", w:4,  h:12, shape:"rect",   speed:620,  fireRateMult:1.0,  pierce:0 },
+  { name:"Laser Array",   shots:[{a:0,x:-10},{a:0,x:0},{a:0,x:10}], color:"#60a5fa", w:3, h:22, shape:"rect", speed:900, fireRateMult:1.05, pierce:0 },
+  { name:"Plasma Burst",  shots:[{a:0,x:0}], color:"#f97316", w:15, h:15, shape:"circle", speed:480, fireRateMult:1.5, pierce:0 },
+  { name:"Rail Gun",      shots:[{a:0,x:0}], color:"#facc15", w:4,  h:32, shape:"rect", speed:1150, fireRateMult:1.6, pierce:3 },
+  { name:"Photon Spread", shots:[{a:-0.22,x:0},{a:0,x:0},{a:0.22,x:0}], color:"#a78bfa", w:5, h:12, shape:"rect", speed:600, fireRateMult:1.15, pierce:0 },
+  { name:"Quad Array",     shots:[{a:0,x:-12},{a:0,x:-4},{a:0,x:4},{a:0,x:12}], color:"#22d3ee", w:4, h:14, shape:"rect", speed:660, fireRateMult:1.25, pierce:0 },
+  { name:"Quad Spread",    shots:[{a:-0.30,x:0},{a:-0.10,x:0},{a:0.10,x:0},{a:0.30,x:0}], color:"#34d399", w:5, h:12, shape:"rect", speed:600, fireRateMult:1.3, pierce:0 },
+  { name:"Quantum Blaster", shots:[{a:0,x:-9},{a:0,x:9}], color:"#f472b6", w:6, h:12, shape:"rect", speed:660, fireRateMult:1.1, pierce:0, flicker:true },
+  { name:"Star Shredder", shots:[{a:-0.36,x:0},{a:-0.18,x:0},{a:0,x:0},{a:0.18,x:0},{a:0.36,x:0}], color:"#fb7185", w:4, h:10, shape:"rect", speed:580, fireRateMult:1.4, pierce:0 },
+  { name:"Void Ripper",   shots:[{a:0,x:0}], color:"#7c3aed", w:18, h:18, shape:"circle", speed:420, fireRateMult:1.8, pierce:5 }
+];
+function getEquippedWeaponPattern(){
+  const w = itemById(save.equipped.weapon)||itemById("twin0");
+  return WEAPON_PATTERNS[(w.idx||0)%WEAPON_PATTERNS.length];
+}
+function getEquippedShipColor(){
+  if(save.equipped.skin){
+    const sk = skinById(save.equipped.skin);
+    if(sk) return sk.color;
+  }
+  const s = itemById(save.equipped.ship)||itemById("falcon0");
+  return SHIP_COLORS[(s.idx||0)%SHIP_COLORS.length];
+}
+function getEquippedTrailColor(){
+  const tr = itemById(save.equipped.trail)||itemById("spark0");
+  return TRAIL_COLORS[(tr.idx||0)%TRAIL_COLORS.length];
+}
+const SHIELD_COLORS = ["#4ce0d4","#60a5fa","#facc15","#a78bfa","#f97316","#7c3aed","#f472b6","#eab308","#22d3ee","#e2e8f0"];
+function getEquippedShieldColor(){
+  const sh = itemById(save.equipped.shield)||itemById("aegis0");
+  return SHIELD_COLORS[(sh.idx||0)%SHIELD_COLORS.length];
+}
+
+function grantBPXP(amount){
+  if(save.bpTier>=TOTAL_BP_TIERS) return;
+  const eq = itemById(save.equipped.trail);
+  const bonus = eq && eq.stats && eq.stats.xpBonus ? 1+eq.stats.xpBonus : 1;
+  save.bpXP += Math.round(amount*bonus);
+  while(save.bpTier < TOTAL_BP_TIERS && save.bpXP >= bpCumulativeXP(save.bpTier+1)){
+    save.bpTier++;
+    const item = BP_TIERS[save.bpTier-1];
+    if(!save.inventory[item.type].includes(item.id)){
+      save.inventory[item.type].push(item.id);
+    }
+    showToast("UNLOCKED: "+item.name);
+  }
+  persist();
+}
+
+/* ===================== EQUIPPED STAT AGGREGATION ===================== */
+function getEquippedStats(){
+  const ship = itemById(save.equipped.ship) || itemById("falcon0");
+  const weapon = itemById(save.equipped.weapon) || itemById("twin0");
+  const shield = itemById(save.equipped.shield) || itemById("aegis0");
+  return {
+    speedBonus: (ship.stats && ship.stats.speed) || 0,
+    maxHpBonus: (ship.stats && ship.stats.maxHpBonus) || 0,
+    damageBonus: (weapon.stats && weapon.stats.damage) || 0,
+    fireRateBonus: (weapon.stats && weapon.stats.fireRate) || 0,
+    shieldMax: (shield.stats && shield.stats.maxCharges) || 0,
+    shieldRegen: (shield.stats && shield.stats.regenTime) || 99
+  };
+}
+
+/* ===================== LEVEL DIFFICULTY FORMULAS ===================== */
+const DIFF_MULT = { easy:0.75, normal:1, hard:1.4 };
+function levelConfig(n){
+  const dm = DIFF_MULT[save.settings.difficulty];
+  const tierIndex = Math.min(4, Math.floor((n-1)/20));
+  // More waves, growing faster as levels climb — starts meaty and reaches a full 10-wave gauntlet by the midgame.
+  const waveCount = Math.min(10, 4 + Math.floor((n-1)/11));
+  const enemiesPerWave = Math.min(14, 3 + Math.floor((n-1)/6));
+  const enemyHP = Math.max(1, Math.round((1 + tierIndex*1.4 + (n-1)*0.12) * dm));
+  const enemySpeed = (58 + tierIndex*16 + (n-1)*0.55) * (dm*0.6+0.4);
+  const enemyFireInterval = Math.max(0.42, (2.2 - tierIndex*0.16 - (n-1)*0.009) / dm);
+  const bossHP = Math.round((30 + (n-1)*4.2) * dm);
+  const bossFireInterval = Math.max(0.32, (1.5 - tierIndex*0.1 - (n-1)*0.006) / dm);
+  const isBossShowcase = (n%10===0);
+  return { n, tierIndex, waveCount, enemiesPerWave, enemyHP, enemySpeed, enemyFireInterval, bossHP, bossFireInterval, isBossShowcase };
+}
+// Wave-by-wave escalation WITHIN a single level: wave 1 is a warm-up, the last wave before
+// the boss should feel dangerous. Multiplies enemy hp/speed/fire-rate and adds extra spawns.
+function waveMultiplier(wave, waveCount){
+  const progress = waveCount>1 ? (wave-1)/(waveCount-1) : 0;
+  return { hp: 1+progress*0.9, speed: 1+progress*0.55, fire: 1-progress*0.28, extraSpawns: Math.round(progress*3) };
+}
+const ENEMY_TIER_COLORS = ["#7ee787","#4ce0d4","#ffb703","#ff8fa3","#c084fc"];
+const KILL_MARKER_COLORS = { white:"#ffffff", red:"#ff4d4d", blue:"#4cc9f0", green:"#7ee787" };
+const ENEMY_TIER_NAMES = ["Scout","Fighter","Interceptor","Bomber","Warbird"];
+
+/* ===================== BOSS "NIGHTMARE" ARCHETYPES — one of 10 per level, apex version every 10th ===================== */
+const BOSS_ARCHETYPES = [
+  { key:"wraith",     name:"The Wraith",       color:"#a78bfa", behavior:"erratic_aim" },
+  { key:"devourer",   name:"The Devourer",     color:"#34d399", behavior:"summon" },
+  { key:"behemoth",   name:"The Behemoth",     color:"#f97316", behavior:"wide_spread" },
+  { key:"swarmqueen", name:"The Swarm Queen",  color:"#f472b6", behavior:"ring" },
+  { key:"reaper",     name:"The Reaper",       color:"#ef4444", behavior:"laser_sweep" },
+  { key:"leviathan",  name:"The Leviathan",    color:"#22d3ee", behavior:"homing" },
+  { key:"juggernaut", name:"The Juggernaut",   color:"#facc15", behavior:"charge" },
+  { key:"harbinger",  name:"The Harbinger",    color:"#7c3aed", behavior:"spiral" },
+  { key:"specter",    name:"The Specter",      color:"#94a3b8", behavior:"blink" },
+  { key:"nightking",  name:"The Nightmare King", color:"#ef476f", behavior:"combo" }
+];
+function bossArchetypeFor(n){
+  return BOSS_ARCHETYPES[(n-1)%BOSS_ARCHETYPES.length];
+}
+
+/* ===================== CANVAS SETUP ===================== */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+let W=0,H=0,DPR=1;
+function resize(){
+  const rect = canvas.getBoundingClientRect();
+  DPR = Math.min(2, window.devicePixelRatio||1);
+  W = rect.width; H = rect.height;
+  canvas.width = Math.round(W*DPR);
+  canvas.height = Math.round(H*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener("resize", resize);
+
+/* ===================== AUDIO (WebAudio synth, no external files) ===================== */
+let actx=null;
+function ensureAudio(){ if(!actx){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } }
+function beep(freq, dur, type, vol){
+  if(!save.settings.sfx) return;
+  ensureAudio();
+  if(!actx) return;
+  const o = actx.createOscillator();
+  const g = actx.createGain();
+  o.type = type||"square";
+  o.frequency.value = freq;
+  g.gain.value = (vol!==undefined?vol:0.06);
+  o.connect(g); g.connect(actx.destination);
+  const now = actx.currentTime;
+  g.gain.setValueAtTime(g.gain.value, now);
+  g.gain.exponentialRampToValueAtTime(0.0001, now+dur);
+  o.start(now);
+  o.stop(now+dur);
+}
+function sfxShoot(){ beep(720,0.045,"square",0.035); }
+function sfxHit(){ beep(180,0.09,"sawtooth",0.05); }
+function sfxExplode(){ beep(90,0.28,"sawtooth",0.07); }
+function sfxPlayerHit(){ beep(140,0.22,"square",0.08); }
+function sfxWave(){ beep(500,0.14,"triangle",0.06); }
+function sfxWin(){ beep(660,0.12,"triangle",0.07); setTimeout(()=>beep(880,0.18,"triangle",0.07),120); }
+function sfxLose(){ beep(220,0.35,"sawtooth",0.08); }
+function sfxKill(elite){
+  if(elite){ beep(950,0.05,"square",0.05); setTimeout(()=>beep(1300,0.09,"square",0.05),40); }
+  else { beep(1050,0.045,"square",0.04); }
+}
+function sfxBossWarning(){
+  // rising klaxon siren, R6-style "boss incoming" alert
+  if(!save.settings.sfx) return;
+  ensureAudio();
+  if(!actx) return;
+  for(let i=0;i<3;i++){
+    setTimeout(()=>{
+      beep(220,0.32,"sawtooth",0.09);
+      setTimeout(()=>beep(440,0.28,"sawtooth",0.09), 180);
+    }, i*420);
+  }
+}
+function flashBossWarning(){
+  const flash = document.createElement("div");
+  flash.style.cssText = "position:absolute;inset:0;z-index:45;pointer-events:none;background:rgba(239,71,111,0.28);animation:bossFlash 1.3s ease-out forwards;";
+  document.getElementById("app").appendChild(flash);
+  setTimeout(()=>flash.remove(), 1350);
+}
+
+/* ===================== INPUT ===================== */
+const keys = {};
+window.addEventListener("keydown", e=>{
+  keys[e.key.toLowerCase()] = true;
+  if(e.key==="Escape") togglePause();
+});
+window.addEventListener("keyup", e=>{ keys[e.key.toLowerCase()] = false; });
+
+let pointerActive=false, pointerX=0, pointerY=0;
+function pointerPos(e){
+  const r = canvas.getBoundingClientRect();
+  const p = e.touches ? e.touches[0] : e;
+  return { x: p.clientX-r.left, y: p.clientY-r.top };
+}
+canvas.addEventListener("pointerdown", e=>{ pointerActive=true; const p=pointerPos(e); pointerX=p.x; pointerY=p.y; });
+canvas.addEventListener("pointermove", e=>{ if(pointerActive){ const p=pointerPos(e); pointerX=p.x; pointerY=p.y; } });
+window.addEventListener("pointerup", ()=>{ pointerActive=false; });
+
+/* ===================== GAME OBJECTS ===================== */
+let game = null; // current run state
+
+function newPlayer(){
+  const eq = getEquippedStats();
+  const pattern = getEquippedWeaponPattern();
+  return {
+    x: 0, y:0, w:34, h:34,
+    baseSpeed: 300,
+    speed: 300*(1+eq.speedBonus*0.15),
+    maxHealth: 5 + Math.round(eq.maxHpBonus),
+    health: 5 + Math.round(eq.maxHpBonus),
+    fireRate: Math.max(0.06, 0.24*pattern.fireRateMult - eq.fireRateBonus*0.018),
+    damage: 1 + eq.damageBonus,
+    fireTimer:0,
+    invuln:0,
+    trailT:0,
+    weaponPattern: pattern,
+    altToggle:false,
+    shipColor: getEquippedShipColor(),
+    skinFx: getEquippedSkinFx(),
+    skinLook: getSkinLook(),
+    fxTrailTimer: 0,
+    trailColor: getEquippedTrailColor(),
+    shieldColor: getEquippedShieldColor(),
+    shieldMax: eq.shieldMax,
+    shield: eq.shieldMax,
+    shieldRegenTime: eq.shieldRegen,
+    shieldRegenTimer: eq.shieldRegen
+  };
+}
+
+function startLevel(n){
+  const cfg = levelConfig(n);
+  const eq = getEquippedStats();
+  game = {
+    level:n, cfg, ranked:false,
+    player:newPlayer(),
+    bullets:[], enemyBullets:[], enemies:[], particles:[], stars:[], killMarkers:[],
+    wave:1, waveState:"spawning", // spawning -> active -> cleared -> boss -> won
+    spawnQueue:0, spawnTimer:0,
+    boss:null,
+    shakeT:0, shakeMag:0,
+    xpEarned:0, coinsEarned:0,
+    time:0,
+    paused:false
+  };
+  for(let i=0;i<80;i++){
+    game.stars.push({ x:Math.random()*2000, y:Math.random()*2000, s:Math.random()*2+0.5, sp:Math.random()*40+20 });
+  }
+  game.player.x = W/2; game.player.y = H-90;
+  beginWave();
+  showScreen(null);
+  document.getElementById("hud").classList.remove("hidden");
+  document.getElementById("bossBarWrap").classList.add("hidden");
+  updateHUD();
+}
+
+/* ===================== RANKED MODE (endless survival, feeds the leaderboard) ===================== */
+function renderRankedIntro(){
+  document.getElementById("rankedBestLabel").textContent = "Best score: "+save.bestRankedScore;
+}
+document.getElementById("startRankedBtn").addEventListener("click", startRanked);
+function startRanked(){
+  game = {
+    level:"ranked", ranked:true,
+    cfg:{ tierIndex:0 },
+    player:newPlayer(),
+    bullets:[], enemyBullets:[], enemies:[], particles:[], stars:[], killMarkers:[],
+    wave:1, waveState:"active",
+    spawnQueue:0, spawnTimer:0,
+    boss:null,
+    shakeT:0, shakeMag:0,
+    xpEarned:0, coinsEarned:0,
+    rankedTime:0, rankedSpawnTimer:0.6,
+    time:0,
+    paused:false
+  };
+  for(let i=0;i<80;i++){
+    game.stars.push({ x:Math.random()*2000, y:Math.random()*2000, s:Math.random()*2+0.5, sp:Math.random()*40+20 });
+  }
+  game.player.x = W/2; game.player.y = H-90;
+  showScreen(null);
+  document.getElementById("hud").classList.remove("hidden");
+  document.getElementById("bossBarWrap").classList.add("hidden");
+  updateHUD();
+}
+function spawnRankedEnemy(){
+  const t = game.rankedTime;
+  const tier = Math.min(4, Math.floor(t/35));
+  const x = 40 + Math.random()*(W-80);
+  const elite = t>20 && Math.random()<Math.min(0.22, 0.05+t/500);
+  const hp = Math.max(1, Math.round((1+t*0.09) * (elite?2.1:1)));
+  game.enemies.push({
+    x, y:-30, w:26, h:22,
+    hp, maxHp:hp,
+    speed:(70+t*1.6)*(0.8+Math.random()*0.4),
+    fireMult: Math.max(0.4, 1-t*0.006),
+    fireInterval: Math.max(0.5, 1.8-t*0.01),
+    tier, elite,
+    fireTimer: Math.random()*1.2,
+    phase: Math.random()*Math.PI*2,
+    baseX: x
+  });
+}
+function rankedEnded(){
+  const score = game.xpEarned + Math.floor(game.rankedTime)*3;
+  const isRecord = score > save.bestRankedScore;
+  if(isRecord) save.bestRankedScore = score;
+  const coinsGained = Math.round(score/8);
+  save.coins += coinsGained;
+  grantBPXP(Math.round(score*0.6));
+  grantRankXP(Math.round(score*0.6));
+  persist();
+  document.getElementById("rankedOverStats").textContent = "Score: "+score+(isRecord?" — NEW RECORD!":"")+"   •   Coins: +"+coinsGained;
+  document.getElementById("hud").classList.add("hidden");
+  document.getElementById("bossBarWrap").classList.add("hidden");
+  document.getElementById("rankedOverPanel").classList.remove("hidden");
+}
+document.getElementById("rankedAgainBtn").addEventListener("click", ()=>{
+  document.getElementById("rankedOverPanel").classList.add("hidden");
+  startRanked();
+});
+document.getElementById("rankedMenuBtn").addEventListener("click", ()=>{
+  document.getElementById("rankedOverPanel").classList.add("hidden");
+  game=null;
+  goTo("menu");
+});
+
+function beginWave(){
+  game.waveState = "spawning";
+  const wm = waveMultiplier(game.wave, game.cfg.waveCount);
+  game.spawnQueue = game.cfg.enemiesPerWave + wm.extraSpawns;
+  game.spawnTimer = 0;
+  sfxWave();
+  updateHUD();
+}
+
+function spawnEnemy(){
+  const cfg = game.cfg;
+  const wm = waveMultiplier(game.wave, cfg.waveCount);
+  const tier = Math.min(cfg.tierIndex, 4);
+  const x = 40 + Math.random()*(W-80);
+  game.enemies.push({
+    x, y:-30, w:26, h:22,
+    hp: Math.max(1,Math.round(cfg.enemyHP*wm.hp)), maxHp: Math.max(1,Math.round(cfg.enemyHP*wm.hp)),
+    speed: cfg.enemySpeed*wm.speed*(0.8+Math.random()*0.4),
+    fireMult: wm.fire,
+    tier,
+    fireTimer: Math.random()*cfg.enemyFireInterval,
+    phase: Math.random()*Math.PI*2,
+    baseX: x
+  });
+}
+
+function spawnBoss(){
+  const cfg = game.cfg;
+  const arch = bossArchetypeFor(game.level);
+  const apex = (game.level%10===0);
+  const hp = Math.round(cfg.bossHP*(apex?1.35:1));
+  game.boss = {
+    x:W/2, y:-90, w: apex?116:96, h: apex?86:70,
+    hp, maxHp:hp,
+    speed:(120+cfg.tierIndex*8)*(apex?1.15:1), dir:1,
+    fireTimer:1, phase:0, spiralAngle:0,
+    entering:true,
+    tier: cfg.tierIndex,
+    archetype: arch, apex,
+    laserState:"idle", laserTimer:2.4, laserX:W/2,
+    chargeState:"idle", chargeTimer:2.2, homeX:W/2, homeY:90,
+    blinkTimer:2.6,
+    summonTimer:3
+  };
+  document.getElementById("bossBarWrap").classList.remove("hidden");
+  document.getElementById("bossName").textContent = (apex?"APEX NIGHTMARE ":"NIGHTMARE ")+game.level+" — "+arch.name.toUpperCase();
+  game.waveState = "boss";
+  updateHUD();
+}
+
+function updateBoss(bo, dt, p){
+  const cfg = game.cfg;
+  bo.phase += dt;
+  const hpRatio = bo.hp/bo.maxHp;
+  bo.fireTimer -= dt;
+  const baseInterval = cfg.bossFireInterval;
+  switch(bo.archetype.behavior){
+    case "erratic_aim": {
+      bo.x += Math.sin(bo.phase*5)*bo.speed*1.3*dt;
+      bo.x = Math.max(70, Math.min(W-70, bo.x));
+      if(bo.fireTimer<=0){
+        bo.fireTimer = baseInterval*0.65;
+        const ang = Math.atan2(p.y-bo.y, p.x-bo.x);
+        game.enemyBullets.push({x:bo.x,y:bo.y+30,vx:Math.cos(ang)*270,vy:Math.sin(ang)*270,w:7,h:7,color:bo.archetype.color});
+      }
+      break;
+    }
+    case "summon": {
+      bo.x += bo.dir*bo.speed*0.6*dt; if(bo.x<70||bo.x>W-70) bo.dir*=-1;
+      bo.summonTimer -= dt;
+      if(bo.summonTimer<=0){
+        bo.summonTimer = 3.2;
+        for(let i=0;i<2;i++){
+          const sx = bo.x+(i===0?-44:44);
+          game.enemies.push({ x:sx, y:bo.y+24, w:22,h:18, hp:Math.max(1,Math.round(cfg.enemyHP*0.6)), maxHp:Math.max(1,Math.round(cfg.enemyHP*0.6)), speed:cfg.enemySpeed*0.9, fireMult:1, tier:Math.min(cfg.tierIndex,4), fireTimer:1, phase:Math.random()*6, baseX:sx });
+        }
+        showToast("MINIONS SUMMONED");
+      }
+      if(bo.fireTimer<=0){ bo.fireTimer=baseInterval; const ang=Math.atan2(p.y-bo.y,p.x-bo.x); game.enemyBullets.push({x:bo.x,y:bo.y+30,vx:Math.cos(ang)*220,vy:Math.sin(ang)*220,w:7,h:7,color:bo.archetype.color}); }
+      break;
+    }
+    case "wide_spread": {
+      bo.x += bo.dir*bo.speed*dt; if(bo.x<70||bo.x>W-70) bo.dir*=-1;
+      if(bo.fireTimer<=0){
+        bo.fireTimer = baseInterval*1.1;
+        const count = hpRatio<0.33?9:(hpRatio<0.66?7:5);
+        for(let i=0;i<count;i++){
+          const spread=(i-(count-1)/2)*0.16;
+          const ang=Math.PI/2+spread;
+          game.enemyBullets.push({x:bo.x,y:bo.y+30,vx:Math.cos(ang)*230,vy:Math.sin(ang)*230,w:7,h:7,color:bo.archetype.color});
+        }
+      }
+      break;
+    }
+    case "ring": {
+      bo.x = W/2 + Math.sin(bo.phase*0.8)*(W/2-100);
+      if(bo.fireTimer<=0){
+        bo.fireTimer = baseInterval*1.7;
+        const count=14;
+        for(let i=0;i<count;i++){
+          const ang=(Math.PI*2/count)*i;
+          game.enemyBullets.push({x:bo.x,y:bo.y+20,vx:Math.cos(ang)*175,vy:Math.sin(ang)*175,w:6,h:6,color:bo.archetype.color});
+        }
+      }
+      break;
+    }
+    case "laser_sweep": {
+      bo.x += bo.dir*bo.speed*0.5*dt; if(bo.x<70||bo.x>W-70) bo.dir*=-1;
+      bo.laserTimer -= dt;
+      if(bo.laserState==="idle" && bo.laserTimer<=0){
+        bo.laserState="charging"; bo.laserTimer=0.9; bo.laserX=p.x;
+      } else if(bo.laserState==="charging" && bo.laserTimer<=0){
+        bo.laserState="firing"; bo.laserTimer=0.5;
+      } else if(bo.laserState==="firing"){
+        if(Math.abs(p.x-bo.laserX)<28 && p.invuln<=0){ hurtPlayer(); }
+        if(bo.laserTimer<=0){ bo.laserState="idle"; bo.laserTimer=2.6; }
+      }
+      break;
+    }
+    case "homing": {
+      bo.x += bo.dir*bo.speed*0.7*dt; if(bo.x<70||bo.x>W-70) bo.dir*=-1;
+      if(bo.fireTimer<=0){
+        bo.fireTimer = baseInterval*1.3;
+        game.enemyBullets.push({x:bo.x,y:bo.y+30,vx:0,vy:180,w:8,h:8,color:bo.archetype.color,homing:true,turnRate:2.4});
+      }
+      break;
+    }
+    case "charge": {
+      bo.chargeTimer -= dt;
+      if(bo.chargeState==="idle"){
+        bo.x += bo.dir*bo.speed*0.6*dt; if(bo.x<70||bo.x>W-70) bo.dir*=-1; bo.y=90;
+        if(bo.chargeTimer<=0){ bo.chargeState="telegraph"; bo.chargeTimer=0.6; bo.homeX=p.x; }
+      } else if(bo.chargeState==="telegraph"){
+        if(bo.chargeTimer<=0){ bo.chargeState="dash"; bo.chargeTimer=0.55; }
+      } else if(bo.chargeState==="dash"){
+        bo.x += (bo.homeX-bo.x)*Math.min(1,dt*6);
+        bo.y += 230*dt;
+        if(bo.chargeTimer<=0 || bo.y>H*0.55){ bo.chargeState="return"; bo.chargeTimer=0.7; }
+      } else if(bo.chargeState==="return"){
+        bo.y += (90-bo.y)*Math.min(1,dt*4);
+        if(bo.chargeTimer<=0){ bo.chargeState="idle"; bo.chargeTimer=2.4; }
+      }
+      if(bo.fireTimer<=0 && bo.chargeState==="idle"){ bo.fireTimer=baseInterval; const ang=Math.atan2(p.y-bo.y,p.x-bo.x); game.enemyBullets.push({x:bo.x,y:bo.y+30,vx:Math.cos(ang)*240,vy:Math.sin(ang)*240,w:7,h:7,color:bo.archetype.color}); }
+      break;
+    }
+    case "spiral": {
+      bo.x = W/2 + Math.cos(bo.phase*0.5)*(W/2-110);
+      if(bo.fireTimer<=0){
+        bo.fireTimer = baseInterval*0.32;
+        bo.spiralAngle += 0.42;
+        game.enemyBullets.push({x:bo.x,y:bo.y+20,vx:Math.cos(bo.spiralAngle)*200,vy:Math.sin(bo.spiralAngle)*200,w:6,h:6,color:bo.archetype.color});
+        game.enemyBullets.push({x:bo.x,y:bo.y+20,vx:Math.cos(bo.spiralAngle+Math.PI)*200,vy:Math.sin(bo.spiralAngle+Math.PI)*200,w:6,h:6,color:bo.archetype.color});
+      }
+      break;
+    }
+    case "blink": {
+      bo.blinkTimer -= dt;
+      if(bo.blinkTimer<=0){
+        bo.blinkTimer = 2.2;
+        bo.x = 100+Math.random()*(W-200);
+        addParticles(bo.x,bo.y,bo.archetype.color,16);
+      }
+      if(bo.fireTimer<=0){
+        bo.fireTimer=baseInterval*0.6;
+        for(let i=0;i<3;i++){ const spread=(i-1)*0.3; const ang=Math.PI/2+spread; game.enemyBullets.push({x:bo.x,y:bo.y+30,vx:Math.cos(ang)*240,vy:Math.sin(ang)*240,w:7,h:7,color:bo.archetype.color}); }
+      }
+      break;
+    }
+    default: { // combo / nightmare king — mixes patterns by hp phase
+      bo.x += bo.dir*bo.speed*0.8*dt; if(bo.x<70||bo.x>W-70) bo.dir*=-1;
+      if(bo.fireTimer<=0){
+        bo.fireTimer = baseInterval*0.85;
+        if(hpRatio>0.66){
+          const count=8;
+          for(let i=0;i<count;i++){ const ang=(Math.PI*2/count)*i; game.enemyBullets.push({x:bo.x,y:bo.y+20,vx:Math.cos(ang)*170,vy:Math.sin(ang)*170,w:6,h:6,color:bo.archetype.color}); }
+        } else if(hpRatio>0.33){
+          game.enemyBullets.push({x:bo.x,y:bo.y+30,vx:0,vy:200,w:8,h:8,color:bo.archetype.color,homing:true,turnRate:2.8});
+        } else {
+          const count=5;
+          for(let i=0;i<count;i++){ const spread=(i-(count-1)/2)*0.2; const ang=Math.PI/2+spread; game.enemyBullets.push({x:bo.x,y:bo.y+30,vx:Math.cos(ang)*260,vy:Math.sin(ang)*260,w:7,h:7,color:bo.archetype.color}); }
+        }
+      }
+    }
+  }
+}
+
+/* ===================== COLLISIONS / UPDATE ===================== */
+function rectHit(a,b){
+  return Math.abs(a.x-b.x) < (a.w+b.w)/2 && Math.abs(a.y-b.y) < (a.h+b.h)/2;
+}
+function addParticles(x,y,color,count){
+  for(let i=0;i<count;i++){
+    const ang = Math.random()*Math.PI*2, spd = Math.random()*140+40;
+    game.particles.push({ x,y, vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd, life:0.5+Math.random()*0.3, maxLife:0.5+Math.random()*0.3, color });
+  }
+}
+function shake(mag){
+  if(!save.settings.shake) return;
+  game.shakeT = 0.22; game.shakeMag = mag;
+}
+
+function update(dt){
+  if(!game || game.paused) return;
+  game.time += dt;
+  const p = game.player;
+
+  // movement
+  const prevPX = p.x, prevPY = p.y;
+  let dx=0, dy=0;
+  const up = save.settings.controls==="wasd" ? "w":"arrowup";
+  const dn = save.settings.controls==="wasd" ? "s":"arrowdown";
+  const lf = save.settings.controls==="wasd" ? "a":"arrowleft";
+  const rt = save.settings.controls==="wasd" ? "d":"arrowright";
+  if(keys[up]) dy-=1; if(keys[dn]) dy+=1;
+  if(keys[lf]) dx-=1; if(keys[rt]) dx+=1;
+  if(dx||dy){
+    const len = Math.hypot(dx,dy)||1;
+    p.x += (dx/len)*p.speed*dt;
+    p.y += (dy/len)*p.speed*dt;
+  } else if(pointerActive){
+    const tx=pointerX, ty=pointerY;
+    p.x += (tx-p.x)*Math.min(1,dt*10);
+    p.y += (ty-p.y)*Math.min(1,dt*10);
+  }
+  p.x = Math.max(p.w/2, Math.min(W-p.w/2, p.x));
+  p.y = Math.max(p.h/2, Math.min(H-p.h/2, p.y));
+  p.vx = dt>0 ? (p.x-prevPX)/dt : 0;
+  p.vy = dt>0 ? (p.y-prevPY)/dt : 0;
+
+  // Legendary / Black Ice skins shed a themed trail of embers, sparks or ice crystals as they fly
+  if(p.skinFx){
+    p.fxTrailTimer -= dt;
+    if(p.fxTrailTimer<=0){
+      p.fxTrailTimer = p.skinFx.type==="phoenix" ? 0.045 : 0.09;
+      addParticles(p.x + (Math.random()*10-5), p.y+16, p.skinFx.trail, 1);
+    }
+  }
+
+  // auto fire — pattern comes from the equipped weapon, so switching weapons changes shots for real
+  p.fireTimer -= dt;
+  if(p.fireTimer<=0){
+    p.fireTimer = p.fireRate;
+    const pat = p.weaponPattern;
+    let shotList = pat.shots;
+    if(pat.altShots){ p.altToggle=!p.altToggle; shotList = p.altToggle ? pat.altShots : pat.shots; }
+    for(const s of shotList){
+      const ang = -Math.PI/2 + s.a;
+      game.bullets.push({
+        x:p.x+s.x, y:p.y-14,
+        vx:Math.cos(ang)*pat.speed, vy:Math.sin(ang)*pat.speed,
+        w:pat.w, h:pat.h, dmg:p.damage,
+        color:pat.color, shape:pat.shape, pierce:pat.pierce||0,
+        wobble:pat.wobble, flicker:pat.flicker, born:game.time
+      });
+    }
+    sfxShoot();
+  }
+  if(p.invuln>0) p.invuln -= dt;
+  if(p.shield<p.shieldMax){
+    p.shieldRegenTimer -= dt;
+    if(p.shieldRegenTimer<=0){ p.shield++; p.shieldRegenTimer=p.shieldRegenTime; }
+  }
+
+  // bullets
+  for(const b of game.bullets){
+    b.x+=b.vx*dt; b.y+=b.vy*dt;
+    if(b.wobble) b.x += Math.sin((game.time-b.born)*14)*1.6;
+  }
+  game.bullets = game.bullets.filter(b=>b.y>-20 && b.y<H+20);
+  for(const b of game.enemyBullets){
+    if(b.homing){
+      const ang = Math.atan2(p.y-b.y,p.x-b.x);
+      const curAng = Math.atan2(b.vy,b.vx);
+      let diff = ang-curAng;
+      while(diff>Math.PI) diff-=Math.PI*2;
+      while(diff<-Math.PI) diff+=Math.PI*2;
+      const maxTurn = (b.turnRate||2)*dt;
+      const newAng = curAng + Math.max(-maxTurn,Math.min(maxTurn,diff));
+      const spd = Math.hypot(b.vx,b.vy);
+      b.vx = Math.cos(newAng)*spd; b.vy = Math.sin(newAng)*spd;
+    }
+    b.x+=b.vx*dt; b.y+=b.vy*dt;
+  }
+  game.enemyBullets = game.enemyBullets.filter(b=>b.y>-20 && b.y<H+20 && b.x>-20 && b.x<W+20);
+
+  // wave spawning (ranked mode spawns continuously with rising difficulty instead)
+  if(game.ranked){
+    game.rankedTime += dt;
+    game.rankedSpawnTimer -= dt;
+    const interval = Math.max(0.32, 0.95 - game.rankedTime*0.006);
+    if(game.rankedSpawnTimer<=0){
+      spawnRankedEnemy();
+      game.rankedSpawnTimer = interval;
+    }
+  } else if(game.waveState==="spawning"){
+    game.spawnTimer -= dt;
+    if(game.spawnTimer<=0 && game.spawnQueue>0){
+      spawnEnemy();
+      game.spawnQueue--;
+      game.spawnTimer = 0.45;
+    }
+    if(game.spawnQueue<=0) game.waveState="active";
+  }
+
+  // enemies — tougher enemies (tier 2+) predictively lead their shots at where the player is heading
+  for(const en of game.enemies){
+    en.phase += dt*2;
+    en.y += en.speed*dt;
+    en.x = en.baseX + Math.sin(en.phase)*30;
+    en.fireTimer -= dt;
+    const fireInterval = en.fireInterval!==undefined ? en.fireInterval : game.cfg.enemyFireInterval;
+    if(en.fireTimer<=0 && en.y>0 && en.y<H-60){
+      en.fireTimer = fireInterval*(en.fireMult||1)*(0.8+Math.random()*0.4);
+      let aimX = p.x, aimY = p.y;
+      if(en.tier>=2){
+        const dist = Math.hypot(p.x-en.x, p.y-en.y);
+        const lead = dist/220;
+        aimX = p.x + p.vx*lead*0.55;
+        aimY = p.y + p.vy*lead*0.55;
+      }
+      const ang = Math.atan2(aimY-en.y, aimX-en.x);
+      const spd = en.elite?260:220;
+      game.enemyBullets.push({ x:en.x, y:en.y, vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd, w:en.elite?7:5, h:en.elite?7:5, color: en.elite?"#ffd166":ENEMY_TIER_COLORS[en.tier] });
+    }
+  }
+  game.enemies = game.enemies.filter(en=>en.y < H+40);
+
+  // boss — behavior varies by nightmare archetype
+  if(game.boss){
+    const bo = game.boss;
+    if(bo.entering){
+      bo.y += 60*dt;
+      if(bo.y>=90){ bo.y=90; bo.entering=false; }
+    } else {
+      updateBoss(bo, dt, p);
+    }
+  }
+
+  // bullet vs enemy
+  for(const b of game.bullets){
+    if(b._dead) continue;
+    for(const en of game.enemies){
+      if(en._dead) continue;
+      if(rectHit(b,en)){
+        en.hp -= b.dmg;
+        if((b.pierce||0)>0){ b.pierce--; } else { b._dead=true; }
+        sfxHit();
+        addParticles(en.x,en.y,ENEMY_TIER_COLORS[en.tier],4);
+        if(en.hp<=0){
+          en._dead=true;
+          addParticles(en.x,en.y, en.elite?"#ffd166":ENEMY_TIER_COLORS[en.tier], en.elite?22:14);
+          sfxExplode(); sfxKill(en.elite); shake(en.elite?6:3);
+          const gain = (5+en.tier*2)*(en.elite?2.4:1);
+          game.xpEarned += gain;
+          const coinGain = Math.max(1, Math.round(gain/4));
+          game.coinsEarned += coinGain;
+          save.coins += coinGain;
+          persist();
+          addKillMarker(en.x, en.y, gain, en.elite);
+        }
+        if(b._dead) break;
+      }
+    }
+    if(!b._dead && game.boss && !game.boss.entering && rectHit(b,game.boss)){
+      if((b.pierce||0)>0){ b.pierce--; } else { b._dead=true; }
+      game.boss.hp -= b.dmg;
+      sfxHit();
+      addParticles(game.boss.x+(Math.random()-0.5)*60, game.boss.y+(Math.random()-0.5)*30, "#ff5c7a", 3);
+      updateBossBar();
+    }
+  }
+  game.bullets = game.bullets.filter(b=>!b._dead);
+  game.enemies = game.enemies.filter(en=>!en._dead);
+
+  // enemy bullets / enemy bodies vs player
+  if(p.invuln<=0){
+    for(const b of game.enemyBullets){
+      if(rectHit(b,p)){ b._dead=true; hurtPlayer(); break; }
+    }
+    for(const en of game.enemies){
+      if(rectHit(en,p)){ en._dead=true; addParticles(en.x,en.y,ENEMY_TIER_COLORS[en.tier],10); hurtPlayer(); break; }
+    }
+    if(game.boss && !game.boss.entering && rectHit(game.boss,p)){ hurtPlayer(); }
+  }
+  game.enemyBullets = game.enemyBullets.filter(b=>!b._dead);
+  game.enemies = game.enemies.filter(en=>!en._dead);
+
+  // particles
+  for(const pt of game.particles){ pt.x+=pt.vx*dt; pt.y+=pt.vy*dt; pt.life-=dt; pt.vx*=0.94; pt.vy*=0.94; }
+  game.particles = game.particles.filter(pt=>pt.life>0);
+
+  // stars
+  for(const s of game.stars){ s.y += s.sp*dt; if(s.y>H+5){ s.y=-5; s.x=Math.random()*W; } }
+
+  if(game.shakeT>0) game.shakeT -= dt;
+
+  // wave progression (skipped in ranked mode — it never runs out of waves)
+  if(!game.ranked && game.waveState==="active" && game.enemies.length===0){
+    if(game.wave < game.cfg.waveCount){
+      game.wave++;
+      beginWave();
+      showToast("WAVE "+game.wave+" / "+game.cfg.waveCount);
+    } else if(!game.boss){
+      spawnBoss();
+      sfxBossWarning();
+      flashBossWarning();
+      showToast("⚠ BOSS INCOMING ⚠");
+    }
+  }
+
+  // boss defeated
+  if(game.boss && game.boss.hp<=0 && !game._bossDead){
+    game._bossDead = true;
+    addParticles(game.boss.x,game.boss.y,"#ff5c7a",40);
+    sfxExplode(); shake(8);
+    game.xpEarned += 150;
+    setTimeout(levelWon, 500);
+  }
+
+  // kill markers (R6-style hit confirms)
+  for(const km of game.killMarkers){ km.age += dt; }
+  game.killMarkers = game.killMarkers.filter(km=>km.age<0.5);
+
+  if(p.health<=0 && !game._over){
+    game._over = true;
+    sfxLose();
+    if(game.ranked){ setTimeout(rankedEnded, 300); }
+    else { setTimeout(levelLost, 300); }
+  }
+
+  updateHUD();
+}
+function addKillMarker(x,y,score,elite){
+  game.killMarkers.push({ x, y, age:0, score:Math.round(score), elite:!!elite });
+}
+
+function hurtPlayer(){
+  const p = game.player;
+  if(p.shield>0){
+    p.shield--; p.invuln = 0.6; p.shieldRegenTimer = p.shieldRegenTime;
+    beep(520,0.12,"triangle",0.06);
+    addParticles(p.x,p.y,p.shieldColor||"#4ce0d4",12);
+    return;
+  }
+  p.health--; p.invuln = 1.1;
+  sfxPlayerHit(); shake(6);
+  addParticles(p.x,p.y,"#ef476f",10);
+}
+
+function updateBossBar(){
+  if(!game.boss) return;
+  const pct = Math.max(0, game.boss.hp/game.boss.maxHp*100);
+  document.getElementById("bossFill").style.width = pct+"%";
+}
+
+/* ===================== RENDER ===================== */
+function draw(){
+  ctx.save();
+  ctx.clearRect(0,0,W,H);
+  // bg gradient
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,"#0a0e27"); g.addColorStop(1,"#050612");
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+  let ox=0, oy=0;
+  if(game && game.shakeT>0){
+    ox = (Math.random()-0.5)*game.shakeMag;
+    oy = (Math.random()-0.5)*game.shakeMag;
+  }
+  ctx.translate(ox,oy);
+
+  if(game){
+    // stars
+    ctx.fillStyle="#ffffff";
+    for(const s of game.stars){ ctx.globalAlpha = 0.4+s.s/3; ctx.fillRect(s.x,s.y,s.s,s.s); }
+    ctx.globalAlpha=1;
+
+    // enemy bullets
+    for(const b of game.enemyBullets){
+      ctx.fillStyle = b.color||"#ff5c7a";
+      ctx.shadowColor = b.color||"#ff5c7a"; ctx.shadowBlur=6;
+      ctx.beginPath(); ctx.arc(b.x,b.y,b.w/2,0,Math.PI*2); ctx.fill();
+    }
+    ctx.shadowBlur=0;
+
+    // player bullets — color/shape come from the equipped weapon
+    for(const b of game.bullets){
+      const c = b.color||"#4ce0d4";
+      ctx.globalAlpha = (b.flicker && Math.floor((game.time-b.born)*30)%2===0) ? 0.4 : 1;
+      ctx.fillStyle=c; ctx.shadowColor=c; ctx.shadowBlur=8;
+      if(b.shape==="circle"){
+        ctx.beginPath(); ctx.arc(b.x,b.y,b.w/2,0,Math.PI*2); ctx.fill();
+      } else {
+        ctx.fillRect(b.x-b.w/2,b.y-b.h/2,b.w,b.h);
+      }
+    }
+    ctx.globalAlpha=1; ctx.shadowBlur=0;
+
+    // enemies
+    for(const en of game.enemies){ drawEnemy(en); }
+
+    // boss
+    if(game.boss) drawBoss(game.boss);
+
+    // particles
+    for(const pt of game.particles){
+      ctx.globalAlpha = Math.max(0,pt.life/pt.maxLife);
+      ctx.fillStyle = pt.color;
+      ctx.fillRect(pt.x-2,pt.y-2,4,4);
+    }
+    ctx.globalAlpha=1;
+
+    // player
+    drawPlayer(game.player);
+
+    // R6-style kill markers — expanding X hit-confirm + floating score
+    const killCol = KILL_MARKER_COLORS[save.settings.killColor] || "#ffffff";
+    for(const km of game.killMarkers){
+      const t = km.age/0.5;
+      const alpha = 1-t;
+      const size = 10 + t*14;
+      const col = km.elite ? "#ffd166" : killCol;
+      ctx.save();
+      ctx.translate(km.x, km.y - t*18);
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = col; ctx.lineWidth = 2.4;
+      ctx.shadowColor = col; ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.moveTo(-size,-size); ctx.lineTo(size,size);
+      ctx.moveTo(size,-size); ctx.lineTo(-size,size);
+      ctx.stroke();
+      ctx.shadowBlur=0;
+      ctx.fillStyle = km.elite? "#ffd166":killCol;
+      ctx.font = "10px 'Space Mono', monospace";
+      ctx.textAlign="center";
+      ctx.fillText("+"+km.score, 0, -size-8);
+      ctx.restore();
+    }
+  }
+
+  ctx.restore();
+}
+
+function hexToRgba(hex, alpha){
+  const h = hex.replace("#","");
+  const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+  return "rgba("+r+","+g+","+b+","+alpha+")";
+}
+function drawPlayer(p){
+  const flashing = p.invuln>0 && Math.floor(p.invuln*20)%2===0;
+  const fx = p.skinFx;
+  ctx.save();
+  ctx.translate(p.x,p.y);
+  if(flashing) ctx.globalAlpha=0.4;
+
+  // animated legendary / black ice aura ring — pulses and rotates behind the ship
+  if(fx){
+    const pulse = 0.55+0.45*Math.sin(game.time*4.2);
+    const spin = game.time*(fx.type==="eclipse"?1.4:2.2);
+    ctx.save();
+    ctx.globalAlpha *= 0.5+pulse*0.4;
+    ctx.rotate(spin);
+    ctx.strokeStyle = fx.ring;
+    ctx.shadowColor = fx.ring; ctx.shadowBlur = 14+pulse*10;
+    ctx.lineWidth = fx.type==="eclipse" ? 3 : 1.6;
+    if(fx.type==="eclipse"){
+      // solar-eclipse corona: a ring with radiating spokes
+      ctx.beginPath(); ctx.arc(0,0,26,0,Math.PI*2); ctx.stroke();
+      for(let i=0;i<8;i++){
+        const a = i/8*Math.PI*2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a)*27,Math.sin(a)*27);
+        ctx.lineTo(Math.cos(a)*(34+pulse*6),Math.sin(a)*(34+pulse*6));
+        ctx.stroke();
+      }
+    } else if(fx.type==="reaper"){
+      // two crossing crescent slashes
+      ctx.beginPath(); ctx.arc(0,0,25,0.3,2.4); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0,0,25,Math.PI+0.3,Math.PI+2.4); ctx.stroke();
+    } else {
+      ctx.setLineDash(fx.type==="dragon"?[6,5]:(fx.type==="phoenix"?[3,4]:[]));
+      ctx.beginPath(); ctx.arc(0,0,25+pulse*3,0,Math.PI*2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.shadowBlur=0;
+    ctx.restore();
+  }
+
+  // twin engine trail — colored by equipped trail item
+  ctx.fillStyle = hexToRgba(p.trailColor||"#4ce0d4", 0.55);
+  ctx.beginPath(); ctx.ellipse(-8,20,3.5,13,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(8,20,3.5,13,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = hexToRgba(p.trailColor||"#4ce0d4", 0.25);
+  ctx.beginPath(); ctx.ellipse(-8,29,2.5,9,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(8,29,2.5,9,0,0,Math.PI*2); ctx.fill();
+
+  // vertical tail fin
+  ctx.fillStyle="#2a3060";
+  ctx.beginPath(); ctx.moveTo(0,4); ctx.lineTo(0,-10); ctx.lineTo(-3,10); ctx.lineTo(3,10); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = p.shipColor||"#4ce0d4";
+  ctx.beginPath(); ctx.moveTo(0,-9); ctx.lineTo(-2.5,8); ctx.lineTo(2.5,8); ctx.closePath(); ctx.fill();
+
+  // rear stabilizer wings
+  ctx.fillStyle="#3a4080";
+  ctx.beginPath(); ctx.moveTo(-6,8); ctx.lineTo(-18,18); ctx.lineTo(-6,15); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(6,8); ctx.lineTo(18,18); ctx.lineTo(6,15); ctx.closePath(); ctx.fill();
+
+  // main wings — silhouette depends on the equipped skin's hull variant, accent colored by equipped ship
+  const look = p.skinLook || { hull:0, accent:0, accentColor:null };
+  const hullShape = HULL_SHAPES[look.hull] || HULL_SHAPES[0];
+  hullShape.wings(ctx, p.shipColor||"#4ce0d4");
+  const blink = Math.sin(game.time*6)>0;
+  ctx.fillStyle = blink? "#ff4d5e":"#7ee787"; ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=6;
+  ctx.beginPath(); ctx.arc(-23,13,1.6,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = blink? "#7ee787":"#ff4d5e"; ctx.shadowColor=ctx.fillStyle;
+  ctx.beginPath(); ctx.arc(23,13,1.6,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+
+  // fuselage body — Legendary skins & Black Ice get an animated, themed finish instead of the plain gradient
+  const bodyGrad = ctx.createLinearGradient(0,-20,0,20);
+  if(fx){
+    const shimmer = 0.5+0.5*Math.sin(game.time*(fx.type==="phoenix"?9:5));
+    bodyGrad.addColorStop(0, fx.c0);
+    bodyGrad.addColorStop(0.5, hexToRgba(fx.c1, 0.92));
+    bodyGrad.addColorStop(1, fx.c2);
+    ctx.shadowColor = fx.ring;
+    ctx.shadowBlur = 9+shimmer*9;
+  } else {
+    bodyGrad.addColorStop(0,"#f4f5fb"); bodyGrad.addColorStop(1,"#c7cbe6");
+  }
+  ctx.fillStyle = bodyGrad;
+  hullShape.fuselage(ctx);
+  ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.strokeStyle="rgba(20,24,50,0.35)"; ctx.lineWidth=1; ctx.stroke();
+  if(!fx && look.accent>0 && ACCENT_PATTERNS[look.accent]){
+    ACCENT_PATTERNS[look.accent](ctx, look.accentColor||"#ffffff");
+  }
+
+  // panel line + cockpit canopy
+  ctx.strokeStyle="rgba(20,24,50,0.25)"; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,-4); ctx.lineTo(0,12); ctx.stroke();
+  const canopyGrad = ctx.createLinearGradient(0,-16,0,-2);
+  canopyGrad.addColorStop(0, hexToRgba(p.shipColor||"#4ce0d4",0.95));
+  canopyGrad.addColorStop(1, hexToRgba(p.shipColor||"#4ce0d4",0.55));
+  ctx.fillStyle = canopyGrad;
+  ctx.shadowColor = p.shipColor||"#4ce0d4"; ctx.shadowBlur=6;
+  ctx.beginPath(); ctx.ellipse(0,-9,2.6,7,0,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+
+  // nose tip highlight
+  ctx.fillStyle = p.shipColor||"#4ce0d4";
+  ctx.beginPath(); ctx.moveTo(0,-22); ctx.lineTo(2.5,-15); ctx.lineTo(-2.5,-15); ctx.closePath(); ctx.fill();
+
+  ctx.restore();
+
+  // shield bubble — drawn in world space so it isn't squashed by the trail transform above
+  if(p.shieldMax>0 && p.shield>0){
+    ctx.save();
+    ctx.translate(p.x,p.y);
+    const pulse = 1+Math.sin(game.time*4)*0.04;
+    ctx.strokeStyle = hexToRgba(p.shieldColor||"#4ce0d4", 0.85);
+    ctx.fillStyle = hexToRgba(p.shieldColor||"#4ce0d4", 0.12);
+    ctx.lineWidth = 2;
+    ctx.shadowColor = p.shieldColor||"#4ce0d4"; ctx.shadowBlur=10;
+    ctx.beginPath(); ctx.arc(0,0,30*pulse,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur=0;
+    ctx.restore();
+  }
+}
+function drawEnemy(en){
+  const c = en.elite ? "#ffd166" : ENEMY_TIER_COLORS[en.tier];
+  ctx.save();
+  ctx.translate(en.x,en.y);
+  if(en.elite){
+    ctx.strokeStyle="#ffd166"; ctx.lineWidth=1.5; ctx.globalAlpha=0.55+Math.sin(game.time*8)*0.25;
+    ctx.beginPath(); ctx.arc(0,0,20,0,Math.PI*2); ctx.stroke();
+    ctx.globalAlpha=1;
+  }
+  ctx.fillStyle = c;
+  ctx.shadowColor = c; ctx.shadowBlur = en.elite?10:4;
+  switch(en.tier){
+    case 0: // Scout — small nimble chevron
+      ctx.beginPath(); ctx.moveTo(0,11); ctx.lineTo(10,-9); ctx.lineTo(0,-2); ctx.lineTo(-10,-9); ctx.closePath(); ctx.fill();
+      break;
+    case 1: // Fighter — twin-winged jet
+      ctx.beginPath(); ctx.moveTo(0,13); ctx.lineTo(14,-4); ctx.lineTo(4,-6); ctx.lineTo(0,-13); ctx.lineTo(-4,-6); ctx.lineTo(-14,-4); ctx.closePath(); ctx.fill();
+      break;
+    case 2: // Interceptor — diamond with fins
+      ctx.beginPath(); ctx.moveTo(0,-14); ctx.lineTo(11,0); ctx.lineTo(0,14); ctx.lineTo(-11,0); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#1c2044"; ctx.beginPath(); ctx.arc(0,0,4,0,Math.PI*2); ctx.fill();
+      break;
+    case 3: // Bomber — wide hex body
+      ctx.beginPath();
+      ctx.moveTo(-16,0); ctx.lineTo(-8,-11); ctx.lineTo(8,-11); ctx.lineTo(16,0); ctx.lineTo(8,11); ctx.lineTo(-8,11);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle="rgba(0,0,0,0.35)"; ctx.lineWidth=1.5; ctx.stroke();
+      break;
+    default: // Warbird — sleek double-tipped arrow
+      ctx.beginPath(); ctx.moveTo(0,-16); ctx.lineTo(6,-2); ctx.lineTo(16,4); ctx.lineTo(6,4); ctx.lineTo(0,14); ctx.lineTo(-6,4); ctx.lineTo(-16,4); ctx.lineTo(-6,-2); ctx.closePath(); ctx.fill();
+  }
+  ctx.shadowBlur=0;
+  // hp pip
+  if(en.maxHp>1){
+    const w=24, pct=Math.max(0,en.hp/en.maxHp);
+    ctx.fillStyle="rgba(0,0,0,0.5)"; ctx.fillRect(-w/2,-24,w,4);
+    ctx.fillStyle=c; ctx.fillRect(-w/2,-24,w*pct,4);
+  }
+  ctx.restore();
+}
+function drawBoss(bo){
+  const c = bo.archetype.color;
+  const scale = (bo.apex?1.85:1.6);
+  const w=bo.w*scale, h=bo.h*scale;
+  const bob = Math.sin(bo.phase*1.6)*4; // slow creepy breathing motion, visual only
+  ctx.save();
+  ctx.translate(bo.x,bo.y+bob);
+  ctx.shadowColor=c; ctx.shadowBlur = bo.apex?26:14;
+  ctx.strokeStyle=c; ctx.lineWidth=3;
+  const flesh = "#0b0c1c";
+
+  function jaggedBlob(rx,ry,spikes,irregular){
+    ctx.beginPath();
+    for(let i=0;i<=spikes;i++){
+      const a = (Math.PI*2/spikes)*i;
+      const jr = irregular ? (0.75+((i*37)%13)/13*0.5) : 1;
+      const px = Math.cos(a)*rx*jr, py = Math.sin(a)*ry*jr;
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.closePath();
+  }
+  function eye(ex,ey,r){
+    ctx.save();
+    ctx.shadowColor=c; ctx.shadowBlur=10;
+    ctx.fillStyle="#0b0c1c"; ctx.beginPath(); ctx.ellipse(ex,ey,r*1.3,r,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=c;
+    ctx.beginPath(); ctx.arc(ex,ey,r*0.55,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle="#fff"; ctx.globalAlpha=0.85;
+    ctx.beginPath(); ctx.arc(ex-r*0.15,ey-r*0.15,r*0.16,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.restore();
+  }
+
+  switch(bo.archetype.key){
+    case "wraith": // hooded specter with glowing eyes, ragged cloak hem
+      ctx.fillStyle=flesh;
+      ctx.beginPath(); ctx.arc(0,-h*0.28,w*0.38,Math.PI,0);
+      ctx.lineTo(w*0.42,h*0.3);
+      for(let i=0;i<5;i++){ ctx.lineTo(w*0.42-(i+1)*(w*0.84/5), i%2===0? h*0.3:h*0.48); }
+      ctx.lineTo(-w*0.42,h*0.3);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      eye(-w*0.13,-h*0.28,7); eye(w*0.13,-h*0.28,7);
+      break;
+    case "devourer": // gaping maw, rows of teeth, single cyclopean eye above
+      ctx.fillStyle=flesh;
+      jaggedBlob(w*0.45,h*0.4,10,true); ctx.fill(); ctx.stroke();
+      ctx.fillStyle="#e8eaf0";
+      for(let i=-4;i<=4;i++){ ctx.beginPath(); ctx.moveTo(i*(w/11),h*0.18); ctx.lineTo(i*(w/11)+(w*0.03),h*0.42); ctx.lineTo(i*(w/11)-(w*0.03),h*0.42); ctx.closePath(); ctx.fill(); }
+      eye(0,-h*0.15,11);
+      break;
+    case "behemoth": // hulking giant torso, horns, twin chest eyes
+      ctx.fillStyle=flesh;
+      ctx.beginPath();
+      ctx.moveTo(-w*0.5,h*0.4); ctx.quadraticCurveTo(-w*0.56,-h*0.1,-w*0.3,-h*0.42);
+      ctx.quadraticCurveTo(0,-h*0.55,w*0.3,-h*0.42);
+      ctx.quadraticCurveTo(w*0.56,-h*0.1,w*0.5,h*0.4);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle=c;
+      ctx.beginPath(); ctx.moveTo(-w*0.28,-h*0.4); ctx.lineTo(-w*0.4,-h*0.68); ctx.lineTo(-w*0.16,-h*0.45); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(w*0.28,-h*0.4); ctx.lineTo(w*0.4,-h*0.68); ctx.lineTo(w*0.16,-h*0.45); ctx.closePath(); ctx.fill();
+      eye(-w*0.16,-h*0.02,9); eye(w*0.16,-h*0.02,9);
+      break;
+    case "swarmqueen": // segmented thorax with orbiting spawn-pods and compound eyes
+      ctx.fillStyle=flesh; jaggedBlob(w*0.4,h*0.42,7,false); ctx.fill(); ctx.stroke();
+      eye(-w*0.12,-h*0.08,7); eye(w*0.12,-h*0.08,7); eye(0,h*0.14,6);
+      for(let i=0;i<4;i++){
+        const a=bo.phase*2.2+i*(Math.PI/2), ox=Math.cos(a)*(w*0.6), oy=Math.sin(a)*(h*0.55);
+        ctx.fillStyle="#0b0c1c"; ctx.strokeStyle=c; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.arc(ox,oy,7,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      }
+      break;
+    case "reaper": // hooded reaper with scythe arc and hollow glowing eyes
+      ctx.fillStyle=flesh;
+      ctx.beginPath(); ctx.moveTo(0,-h*0.5); ctx.lineTo(w*0.4,h*0.32); ctx.lineTo(0,h*0.5); ctx.lineTo(-w*0.4,h*0.32); ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      eye(-w*0.1,-h*0.05,6); eye(w*0.1,-h*0.05,6);
+      ctx.lineWidth=6; ctx.strokeStyle=c;
+      ctx.beginPath(); ctx.arc(w*0.32,-h*0.42,w*0.5,Math.PI*0.15,Math.PI*1.25); ctx.stroke();
+      break;
+    case "leviathan": // serpentine sea-worm, dorsal spikes, single trailing eye
+      ctx.fillStyle=flesh;
+      ctx.beginPath(); ctx.moveTo(-w*0.5,0);
+      for(let i=0;i<=6;i++){ const t=i/6; ctx.lineTo(-w*0.5+t*w, Math.sin(t*Math.PI*2+bo.phase*2)*h*0.16); }
+      ctx.lineTo(w*0.5,h*0.4); ctx.lineTo(-w*0.5,h*0.4); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle=c;
+      for(let i=0;i<5;i++){ const t=i/4; const sx=-w*0.4+t*w*0.8, sy=Math.sin(t*Math.PI*2+bo.phase*2)*h*0.16-h*0.06; ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(sx-6,sy-16); ctx.lineTo(sx+6,sy-16); ctx.closePath(); ctx.fill(); }
+      eye(w*0.36,-h*0.02,8);
+      break;
+    case "juggernaut": // armored cyclops giant with shoulder spikes
+      ctx.fillStyle=flesh;
+      ctx.beginPath(); ctx.moveTo(-w*0.5,-h*0.4); ctx.lineTo(w*0.5,-h*0.4); ctx.lineTo(w*0.5+w*0.14,0); ctx.lineTo(w*0.5,h*0.4); ctx.lineTo(-w*0.5,h*0.4); ctx.lineTo(-w*0.5-w*0.14,0);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle=c;
+      ctx.beginPath(); ctx.moveTo(-w*0.5-w*0.14,0); ctx.lineTo(-w*0.5-w*0.3,-h*0.18); ctx.lineTo(-w*0.5,-h*0.12); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(w*0.5+w*0.14,0); ctx.lineTo(w*0.5+w*0.3,-h*0.18); ctx.lineTo(w*0.5,-h*0.12); ctx.closePath(); ctx.fill();
+      eye(0,-h*0.05,12);
+      break;
+    case "harbinger": // jagged void-star creature, central glowing core
+      ctx.fillStyle=flesh; jaggedBlob(w*0.5,h*0.5,10,true); ctx.fill(); ctx.stroke();
+      ctx.save(); ctx.shadowColor=c; ctx.shadowBlur=18;
+      ctx.fillStyle=c; ctx.globalAlpha=0.85; ctx.beginPath(); ctx.arc(0,0,10+Math.sin(bo.phase*4)*3,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+      eye(-w*0.2,-h*0.22,6); eye(w*0.2,-h*0.22,6);
+      break;
+    case "specter": // pale translucent ghost, wispy trailing hem
+      ctx.globalAlpha=0.75;
+      ctx.fillStyle="#1a1d38";
+      ctx.beginPath(); ctx.arc(0,-h*0.2,w*0.42,Math.PI,0);
+      ctx.lineTo(w*0.42,h*0.3);
+      for(let i=0;i<5;i++){ ctx.lineTo(w*0.42-(i+1)*(w*0.84/5)+Math.sin(bo.phase*3+i)*4, i%2===0? h*0.3:h*0.5); }
+      ctx.lineTo(-w*0.42,h*0.3);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.globalAlpha=1;
+      eye(-w*0.12,-h*0.2,6); eye(w*0.12,-h*0.2,6);
+      break;
+    default: // nightmare king — crowned demon giant, biggest and most ornate
+      ctx.fillStyle=flesh;
+      ctx.beginPath(); ctx.moveTo(0,h*0.5); ctx.lineTo(w*0.46,h*0.05); ctx.lineTo(w*0.3,-h*0.4); ctx.lineTo(0,-h*0.15); ctx.lineTo(-w*0.3,-h*0.4); ctx.lineTo(-w*0.46,h*0.05);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle=c;
+      ctx.beginPath(); ctx.moveTo(w*0.16,-h*0.38); ctx.lineTo(w*0.3,-h*0.75); ctx.lineTo(w*0.05,-h*0.42); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-w*0.16,-h*0.38); ctx.lineTo(-w*0.3,-h*0.75); ctx.lineTo(-w*0.05,-h*0.42); ctx.closePath(); ctx.fill();
+      eye(-w*0.15,-h*0.02,10); eye(w*0.15,-h*0.02,10);
+  }
+  ctx.shadowBlur=0;
+  if(bo.apex){
+    ctx.globalAlpha=0.5; ctx.strokeStyle=c; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(0,0,Math.max(w,h)/1.5+12+Math.sin(bo.phase*3)*5,0,Math.PI*2); ctx.stroke();
+    ctx.globalAlpha=1;
+  }
+  ctx.restore();
+
+  // laser telegraph / beam (Reaper only) — drawn in world space
+  if(bo.archetype.key==="reaper" && (bo.laserState==="charging"||bo.laserState==="firing")){
+    ctx.save();
+    if(bo.laserState==="charging"){
+      ctx.strokeStyle="rgba(239,68,68,0.55)"; ctx.lineWidth=2; ctx.setLineDash([6,6]);
+      ctx.beginPath(); ctx.moveTo(bo.laserX,bo.y); ctx.lineTo(bo.laserX,H); ctx.stroke(); ctx.setLineDash([]);
+    } else {
+      const grad = ctx.createLinearGradient(bo.laserX-24,0,bo.laserX+24,0);
+      grad.addColorStop(0,"rgba(239,68,68,0)"); grad.addColorStop(0.5,"rgba(239,68,68,0.85)"); grad.addColorStop(1,"rgba(239,68,68,0)");
+      ctx.fillStyle=grad;
+      ctx.fillRect(bo.laserX-24,bo.y,48,H-bo.y);
+    }
+    ctx.restore();
+  }
+}
+
+/* ===================== HUD ===================== */
+function updateHUD(){
+  if(!game) return;
+  const heartsEl = document.getElementById("hearts");
+  heartsEl.innerHTML="";
+  for(let i=0;i<game.player.maxHealth;i++){
+    const full = i<game.player.health;
+    heartsEl.innerHTML += '<div class="heart"><svg viewBox="0 0 20 18"><path d="M10 17 L2 9 A4.5 4.5 0 0 1 10 4 A4.5 4.5 0 0 1 18 9 Z" fill="'+(full?'#ef476f':'#2a3060')+'" stroke="'+(full?'#ef476f':'#3a4080')+'"/></svg></div>';
+  }
+  const shieldEl = document.getElementById("shieldPips");
+  shieldEl.innerHTML="";
+  const sc = game.player.shieldColor||"#4ce0d4";
+  for(let i=0;i<game.player.shieldMax;i++){
+    const full = i<game.player.shield;
+    shieldEl.innerHTML += '<div style="width:14px;height:14px;border-radius:50%;border:2px solid '+(full?sc:'#2a3060')+';background:'+(full?hexToRgba(sc,0.35):'transparent')+'"></div>';
+  }
+  document.getElementById("hudLevel").textContent = game.ranked ? "RANKED RUN" : ("LEVEL "+game.level);
+  document.getElementById("hudWave").textContent = game.ranked
+    ? ("SURVIVED "+Math.floor(game.rankedTime)+"s  •  SCORE "+game.xpEarned)
+    : (game.boss ? "BOSS FIGHT" : ("WAVE "+game.wave+" / "+game.cfg.waveCount));
+  document.getElementById("hudXP").textContent = "+"+game.xpEarned+" XP";
+  if(game.boss) updateBossBar();
+}
+let toastTimer=null;
+function showToast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove("show"), 1400);
+}
+
+/* ===================== LEVEL END HANDLERS ===================== */
+function levelWon(){
+  document.getElementById("hud").classList.add("hidden");
+  document.getElementById("bossBarWrap").classList.add("hidden");
+  const xp = game.xpEarned + 100 + game.level*2;
+  grantBPXP(xp);
+  grantRankXP(xp);
+  save.coins += 20+game.level;
+  if(save.unlockedLevel === game.level) save.unlockedLevel = Math.min(TOTAL_LEVELS, game.level+1);
+  save.bestLevel = Math.max(save.bestLevel, game.level);
+  persist();
+  document.getElementById("winStats").textContent = "XP earned: "+xp+"   •   Coins: +"+(20+game.level);
+  if(game.level>=TOTAL_LEVELS){
+    document.getElementById("victoryPanel").classList.remove("hidden");
+  } else {
+    document.getElementById("nextLevelBtn").disabled=false;
+    document.getElementById("winPanel").classList.remove("hidden");
+  }
+}
+function levelLost(){
+  document.getElementById("hud").classList.add("hidden");
+  document.getElementById("bossBarWrap").classList.add("hidden");
+  const xp = Math.round(game.xpEarned*0.4);
+  grantBPXP(xp);
+  grantRankXP(xp);
+  persist();
+  document.getElementById("goStats").textContent = "XP earned: "+xp+"   •   Reached wave "+game.wave+(game.boss?" (boss)":"");
+  document.getElementById("gameOverPanel").classList.remove("hidden");
+}
+
+/* ===================== PAUSE ===================== */
+function togglePause(){
+  if(!game || !document.getElementById("hud").classList.contains("hidden") === false){
+    if(!game) return;
+  }
+  if(document.getElementById("pausePanel").classList.contains("hidden")){
+    if(!game) return;
+    game.paused = true;
+    document.getElementById("pausePanel").classList.remove("hidden");
+  } else {
+    game.paused = false;
+    document.getElementById("pausePanel").classList.add("hidden");
+  }
+}
+document.getElementById("pauseBtn").addEventListener("click", togglePause);
+document.getElementById("resumeBtn").addEventListener("click", togglePause);
+document.getElementById("quitBtn").addEventListener("click", ()=>{
+  document.getElementById("pausePanel").classList.add("hidden");
+  document.getElementById("hud").classList.add("hidden");
+  document.getElementById("bossBarWrap").classList.add("hidden");
+  game = null;
+  goTo("menu");
+});
+document.getElementById("pauseSettingsBtn").addEventListener("click", ()=>{
+  document.getElementById("pausePanel").classList.add("hidden");
+  goTo("settings");
+  document.getElementById("settingsBack").textContent = "◀ RESUME";
+  settingsReturnToPause = true;
+});
+let settingsReturnToPause=false;
+
+document.getElementById("retryBtn").addEventListener("click", ()=>{
+  document.getElementById("gameOverPanel").classList.add("hidden");
+  startLevel(game.level);
+});
+document.getElementById("goMenuBtn").addEventListener("click", ()=>{
+  document.getElementById("gameOverPanel").classList.add("hidden");
+  game=null; goTo("menu");
+});
+document.getElementById("nextLevelBtn").addEventListener("click", ()=>{
+  document.getElementById("winPanel").classList.add("hidden");
+  startLevel(Math.min(TOTAL_LEVELS, game.level+1));
+});
+document.getElementById("winMenuBtn").addEventListener("click", ()=>{
+  document.getElementById("winPanel").classList.add("hidden");
+  game=null; goTo("menu");
+});
+document.getElementById("victoryMenuBtn").addEventListener("click", ()=>{
+  document.getElementById("victoryPanel").classList.add("hidden");
+  game=null; goTo("menu");
+});
+
+/* ===================== MAIN LOOP ===================== */
+let lastT = performance.now();
+function loop(t){
+  const dt = Math.min(0.05,(t-lastT)/1000);
+  lastT = t;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+/* ===================== UI: NAVIGATION ===================== */
+const screens = ["menu","levels","battlepass","ranks","leaderboard","friends","ranked","shop","inventory","settings"];
+function goTo(name){
+  screens.forEach(s=>{
+    document.getElementById("screen-"+s).classList.toggle("hidden", s!==name);
+  });
+  if(name==="menu"){ renderMenu(); }
+  if(name==="levels") renderLevels();
+  if(name==="battlepass") renderBattlePass();
+  if(name==="ranks") renderRanks();
+  if(name==="leaderboard") renderLeaderboard();
+  if(name==="friends") renderFriends();
+  if(name==="ranked") renderRankedIntro();
+  if(name==="shop") renderShop();
+  if(name==="inventory") renderInventory();
+  if(name==="settings") renderSettings();
+}
+function showScreen(name){
+  screens.forEach(s=> document.getElementById("screen-"+s).classList.add("hidden"));
+  if(name) goTo(name);
+}
+document.body.addEventListener("click", (e)=>{
+  const goEl = e.target.closest("[data-go]");
+  if(goEl){
+    ensureAudio();
+    const target = goEl.dataset.go;
+    if(target==="menu" && settingsReturnToPause){
+      settingsReturnToPause=false;
+      document.getElementById("settingsBack").textContent="◀ BACK";
+      document.getElementById("pausePanel").classList.remove("hidden");
+      document.getElementById("screen-settings").classList.add("hidden");
+      if(game) game.paused=true;
+      return;
+    }
+    goTo(target);
+  }
+});
+
+/* ---- Menu ---- */
+function renderMenu(){
+  document.getElementById("menuProgress").textContent = "Continue • Level "+save.unlockedLevel+" of "+TOTAL_LEVELS;
+  document.getElementById("menuBP").textContent = "Tier "+save.bpTier+" / "+TOTAL_BP_TIERS;
+  const ri = currentRankInfo();
+  document.getElementById("menuRank").textContent = ri.name+" • "+save.packs+" pack"+(save.packs===1?"":"s");
+  document.getElementById("menuRanked").textContent = "Endless survival • Best: "+save.bestRankedScore;
+  const nickEl = document.getElementById("menuNickname");
+  if(save.nickname){
+    nickEl.innerHTML = "CALLSIGN: "+rankBadgeHtml(save.isLeader?TOTAL_RANKS:save.rank)+"<b>"+escapeHtml(save.nickname)+"</b>"+(save.isLeader?'<span class="gang-badge">👑 GANG LEADER</span>':"");
+  } else {
+    nickEl.textContent = "";
+  }
+}
+
+/* ---- Boot flow: splash -> nickname (first time) -> menu ---- */
+function dismissSplash(){
+  const splash = document.getElementById("splashScreen");
+  if(splash.classList.contains("hidden")) return;
+  splash.classList.add("hidden");
+  if(!save.nickname){
+    document.getElementById("nickScreen").classList.remove("hidden");
+    document.getElementById("nickInput").focus();
+  }
+}
+document.getElementById("splashScreen").addEventListener("click", dismissSplash);
+setTimeout(dismissSplash, 2600);
+function trySubmitNickname(){
+  const input = document.getElementById("nickInput");
+  const err = document.getElementById("nickError");
+  const result = claimNickname(input.value);
+  if(!result.ok){ err.textContent = result.error; return; }
+  err.textContent="";
+  document.getElementById("nickScreen").classList.add("hidden");
+  renderMenu();
+}
+document.getElementById("nickConfirmBtn").addEventListener("click", trySubmitNickname);
+document.getElementById("nickInput").addEventListener("keydown", e=>{ if(e.key==="Enter") trySubmitNickname(); });
+
+/* ---- Level select ---- */
+function renderLevels(){
+  const grid = document.getElementById("levelGrid");
+  grid.innerHTML="";
+  for(let i=1;i<=TOTAL_LEVELS;i++){
+    const locked = i>save.unlockedLevel;
+    const done = i<=save.bestLevel;
+    const cell = document.createElement("div");
+    cell.className = "lvl-cell"+(locked?" locked":"")+(done?" done":"")+(i===save.unlockedLevel?" current":"")+(i%10===0?" boss10":"");
+    cell.textContent = i;
+    if(!locked){
+      cell.addEventListener("click", ()=>{ startLevel(i); });
+    }
+    grid.appendChild(cell);
+  }
+}
+
+/* ---- Battle pass ---- */
+function renderBattlePass(){
+  const pct = Math.min(100, save.bpXP/BP_TOTAL_XP*100);
+  document.getElementById("bpBarFill").style.width = pct+"%";
+  document.getElementById("bpTierLabel").textContent = "Tier "+save.bpTier+" / "+TOTAL_BP_TIERS;
+  document.getElementById("bpXPLabel").textContent = save.bpXP+" XP";
+  const track = document.getElementById("bpTrack");
+  track.innerHTML="";
+  BP_TIERS.forEach(item=>{
+    const unlocked = save.bpTier >= item.tier;
+    const el = document.createElement("div");
+    el.className = "bp-tier "+(unlocked?"unlocked":"locked");
+    el.style.setProperty("--rarity", RARITY_COLOR[item.rarity]);
+    el.innerHTML = '<div class="tnum">T'+item.tier+'</div><div class="icon">'+item.icon+'</div><div class="iname">'+item.name+'</div><div class="rarity" style="color:'+RARITY_COLOR[item.rarity]+'">'+item.rarity+'</div>';
+    el.addEventListener("click", ()=> openBPModal(item, unlocked));
+    track.appendChild(el);
+  });
+  // scroll to current tier roughly
+  requestAnimationFrame(()=>{
+    const target = track.children[Math.max(0,save.bpTier-1)];
+    if(target) target.scrollIntoView({inline:"center", block:"nearest"});
+  });
+}
+
+/* ---- Battle pass item detail modal ---- */
+function openBPModal(item, unlocked){
+  document.getElementById("bpmIcon").textContent = item.icon;
+  document.getElementById("bpmName").textContent = item.name;
+  const rarityEl = document.getElementById("bpmRarity");
+  rarityEl.textContent = item.rarity;
+  rarityEl.style.color = RARITY_COLOR[item.rarity];
+  document.getElementById("bpmTier").textContent = unlocked
+    ? "Unlocked at Tier "+item.tier
+    : "Locked — reach Tier "+item.tier+" ("+(bpCumulativeXP(item.tier)-save.bpXP)+" more XP)";
+  let statsHtml = "";
+  if(item.type==="weapon"){
+    const pat = WEAPON_PATTERNS[(item.idx||0)%WEAPON_PATTERNS.length];
+    statsHtml = pat.shots.length+"-shot pattern"+(pat.pierce?" • pierces enemies":"")+(item.stats.damage?" • DMG +"+item.stats.damage:"")+(item.stats.fireRate?" • fire rate +"+item.stats.fireRate:"");
+  } else if(item.type==="ship"){
+    statsHtml = (item.stats.speed?"Speed +"+item.stats.speed:"")+(item.stats.maxHpBonus?" • +"+item.stats.maxHpBonus+" max HP":"");
+  } else if(item.type==="shield"){
+    statsHtml = item.stats.maxCharges+" charge"+(item.stats.maxCharges>1?"s":"")+" • "+item.stats.regenTime+"s regen per charge";
+  } else {
+    statsHtml = "+"+Math.round(item.stats.xpBonus*100)+"% Battle Pass XP";
+  }
+  document.getElementById("bpmStats").textContent = statsHtml;
+  const equipBtn = document.getElementById("bpmEquipBtn");
+  if(unlocked && item.type!=="trail" || (unlocked && (item.type==="ship"||item.type==="weapon"||item.type==="trail"||item.type==="shield"))){
+    equipBtn.classList.remove("hidden");
+    const isEquipped = save.equipped[item.type]===item.id;
+    equipBtn.textContent = isEquipped ? "EQUIPPED ✓" : "EQUIP";
+    equipBtn.onclick = ()=>{
+      save.equipped[item.type] = item.id;
+      persist();
+      document.getElementById("bpModal").classList.add("hidden");
+      showToast("EQUIPPED: "+item.name);
+    };
+  } else {
+    equipBtn.classList.add("hidden");
+  }
+  document.getElementById("bpModal").classList.remove("hidden");
+}
+document.getElementById("bpmCloseBtn").addEventListener("click", ()=>{
+  document.getElementById("bpModal").classList.add("hidden");
+});
+
+/* ---- Ranks & Reward Packs ---- */
+function renderRanks(){
+  const ri = currentRankInfo();
+  const heroBadge = document.getElementById("rankHeroBadge");
+  heroBadge.textContent = ri.icon;
+  heroBadge.style.setProperty("--rc", ri.color);
+  document.getElementById("rankHeroName").textContent = ri.name.toUpperCase();
+  const sub = document.getElementById("rankHeroSub");
+  if(save.rank>=TOTAL_RANKS){
+    sub.textContent = "Max rank reached — keep playing to earn Reward Packs from coins";
+  } else {
+    const need = rankCumulativeXP(save.rank+1) - save.rankXP;
+    sub.textContent = need+" XP to "+RANKS[save.rank].name;
+  }
+  document.getElementById("rankLuckLine").textContent = "Reward Pack luck bonus: +"+Math.round(rankPackBonus()*100)+"% toward Rare/Epic/Legendary/Black Ice";
+  const track = document.getElementById("rankTrack");
+  track.innerHTML="";
+  RANKS.forEach(r=>{
+    const unlocked = save.rank >= r.tier;
+    const isCurrent = save.rank === r.tier;
+    const el = document.createElement("div");
+    el.className = "rank-cell "+(unlocked?"unlocked":"locked")+(isCurrent?" current":"")+(r.isChampion?" champion-cell":"");
+    el.style.setProperty("--rc", r.color);
+    el.innerHTML = '<div class="rb">'+r.icon+'</div><div class="rn">'+r.name+'</div>';
+    track.appendChild(el);
+  });
+  requestAnimationFrame(()=>{
+    const target = track.children[Math.max(0,save.rank-1)];
+    if(target) target.scrollIntoView({inline:"center", block:"nearest"});
+  });
+  document.getElementById("packCoins").textContent = "Coins: "+save.coins;
+  document.getElementById("packCount").textContent = "Reward Packs: "+save.packs;
+  document.getElementById("openPackBtn").disabled = save.packs<=0;
+  document.getElementById("buyPackBtn").disabled = save.coins<PACK_COST;
+}
+document.getElementById("openPackBtn").addEventListener("click", ()=>{
+  if(save.packs<=0) return;
+  startPackOpenAnimation();
+});
+document.getElementById("buyPackBtn").addEventListener("click", ()=>{
+  if(buyPack()){ showToast("PACK PURCHASED"); renderRanks(); }
+  else showToast("NOT ENOUGH COINS");
+});
+let packAnimTimer=null;
+function startPackOpenAnimation(){
+  const modal = document.getElementById("packModal");
+  const box = document.getElementById("packBox");
+  const rarityEl = document.getElementById("packRarity");
+  const nameEl = document.getElementById("packSkinName");
+  const dupEl = document.getElementById("packDup");
+  const contBtn = document.getElementById("packContinueBtn");
+  [rarityEl,nameEl,dupEl,contBtn].forEach(el=>el.classList.add("hidden"));
+  box.className = "pack-box spin";
+  box.textContent = "📦";
+  box.style.setProperty("--pc", "var(--cyan)");
+  modal.classList.remove("hidden");
+  let flickers=0;
+  const cyc = ["common","uncommon","rare","epic","legendary"];
+  clearInterval(packAnimTimer);
+  packAnimTimer = setInterval(()=>{
+    const r = cyc[flickers%cyc.length];
+    box.style.setProperty("--pc", SKIN_RARITY_COLOR[r]);
+    flickers++;
+    if(flickers>14){
+      clearInterval(packAnimTimer);
+      finishPackOpen();
+    }
+  }, 110);
+}
+function finishPackOpen(){
+  const result = openPack();
+  const box = document.getElementById("packBox");
+  const rarityEl = document.getElementById("packRarity");
+  const nameEl = document.getElementById("packSkinName");
+  const dupEl = document.getElementById("packDup");
+  const contBtn = document.getElementById("packContinueBtn");
+  box.classList.remove("spin");
+  if(!result){ document.getElementById("packModal").classList.add("hidden"); return; }
+  const color = SKIN_RARITY_COLOR[result.rarity];
+  box.style.setProperty("--pc", color);
+  box.textContent = result.skin.icon;
+  box.className = "pack-box"+(result.rarity==="blackice"?" blackice-glow":"");
+  rarityEl.textContent = result.rarity.toUpperCase()+(result.rarity==="blackice"?" ★ ULTRA RARE":"");
+  rarityEl.style.color = color; rarityEl.style.setProperty("--pc",color);
+  rarityEl.classList.remove("hidden");
+  nameEl.textContent = result.skin.name;
+  nameEl.classList.remove("hidden");
+  if(result.isDup){
+    dupEl.textContent = "DUPLICATE — converted to +"+result.coinsGained+" coins";
+    dupEl.classList.remove("hidden");
+  } else {
+    dupEl.textContent = "NEW SKIN ADDED TO INVENTORY";
+    dupEl.style.color = "var(--green)";
+    dupEl.classList.remove("hidden");
+  }
+  contBtn.classList.remove("hidden");
+  renderRanks();
+  if(result.rarity==="legendary" || result.rarity==="blackice"){
+    triggerMegaReveal(result.rarity, result.skin);
+  }
+  if(result.rarity==="blackice"){
+    announceBlackIce(result.skin);
+  }
+}
+function triggerMegaReveal(rarity, skin){
+  const isBlack = rarity==="blackice";
+  sfxMegaReveal(isBlack);
+  const overlay = document.createElement("div");
+  overlay.className = "mega-reveal "+(isBlack?"mega-blackice":"mega-legendary");
+  overlay.innerHTML = '<div class="mega-burst"></div><div class="mega-logo">'+(isBlack?"❄ BLACK ICE ❄<br>"+skin.name:"★ LEGENDARY ★<br>"+skin.name)+'</div>';
+  document.getElementById("app").appendChild(overlay);
+  setTimeout(()=>overlay.classList.add("fade-out"), 1500);
+  setTimeout(()=>overlay.remove(), 2000);
+}
+function sfxMegaReveal(isBlack){
+  if(!save.settings.sfx) return;
+  const notes = isBlack ? [660,880,990,1320,1568] : [523,659,784,1046];
+  notes.forEach((f,i)=> setTimeout(()=>beep(f, 0.17, "triangle", 0.075), i*115));
+}
+function showGlobalAnnouncement(text){
+  const el = document.createElement("div");
+  el.className = "global-announce";
+  el.textContent = text;
+  document.getElementById("app").appendChild(el);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.add("show")));
+  setTimeout(()=>el.classList.remove("show"), 4200);
+  setTimeout(()=>el.remove(), 4700);
+}
+function announceBlackIce(skin){
+  const name = save.nickname || "A pilot";
+  showGlobalAnnouncement("❄ "+name+" just pulled BLACK ICE — "+skin.name+"!");
+}
+document.getElementById("packContinueBtn").addEventListener("click", ()=>{
+  document.getElementById("packModal").classList.add("hidden");
+  renderRanks();
+});
+
+/* ---- Inventory ---- */
+let invTab = "ship";
+document.querySelectorAll(".inv-tab").forEach(tab=>{
+  tab.addEventListener("click", ()=>{
+    invTab = tab.dataset.tab;
+    document.querySelectorAll(".inv-tab").forEach(t=>t.classList.toggle("active", t===tab));
+    renderInventory();
+  });
+});
+function renderInventory(){
+  const grid = document.getElementById("invGrid");
+  grid.innerHTML="";
+  if(invTab==="skin"){
+    renderSkinInventory(grid);
+    return;
+  }
+  const ids = save.inventory[invTab];
+  ids.forEach(id=>{
+    const item = itemById(id);
+    if(!item) return;
+    const equipped = save.equipped[invTab]===id;
+    const el = document.createElement("div");
+    el.className = "inv-item"+(equipped?" equipped":"");
+    let statLine = "";
+    let swatch = "";
+    if(invTab==="weapon"){
+      const pat = WEAPON_PATTERNS[(item.idx||0)%WEAPON_PATTERNS.length];
+      const shotCount = pat.shots.length;
+      statLine = shotCount+"-shot"+(pat.pierce?" • pierce":"")+(item.stats.damage?" • DMG +"+item.stats.damage:"");
+      swatch = '<div style="width:14px;height:14px;border-radius:50%;background:'+pat.color+';margin:6px auto 0;box-shadow:0 0 6px '+pat.color+'"></div>';
+    } else if(invTab==="ship"){
+      const col = SHIP_COLORS[(item.idx||0)%SHIP_COLORS.length];
+      statLine = (item.stats.speed?"SPD +"+item.stats.speed:"")+(item.stats.maxHpBonus?" • +"+item.stats.maxHpBonus+" HP":"");
+      swatch = '<div style="width:14px;height:14px;border-radius:50%;background:'+col+';margin:6px auto 0;box-shadow:0 0 6px '+col+'"></div>';
+    } else if(invTab==="shield"){
+      const col = SHIELD_COLORS[(item.idx||0)%SHIELD_COLORS.length];
+      statLine = item.stats.maxCharges ? (item.stats.maxCharges+" charge"+(item.stats.maxCharges>1?"s":"")+" • "+item.stats.regenTime+"s regen") : "No protection";
+      swatch = '<div style="width:14px;height:14px;border-radius:50%;background:'+col+';margin:6px auto 0;box-shadow:0 0 6px '+col+'"></div>';
+    } else {
+      const col = TRAIL_COLORS[(item.idx||0)%TRAIL_COLORS.length];
+      statLine = item.stats.xpBonus ? "XP +"+Math.round(item.stats.xpBonus*100)+"%" : "";
+      swatch = '<div style="width:14px;height:14px;border-radius:50%;background:'+col+';margin:6px auto 0;box-shadow:0 0 6px '+col+'"></div>';
+    }
+    el.innerHTML = '<div class="icon">'+item.icon+'</div><div class="iname">'+item.name+'</div><div class="stat">'+(statLine||item.rarity.toUpperCase())+'</div>'+swatch+(equipped?'<div class="eqtag">EQUIPPED</div>':'');
+    el.addEventListener("click", ()=>{
+      save.equipped[invTab] = id;
+      persist();
+      renderInventory();
+    });
+    grid.appendChild(el);
+  });
+}
+
+function renderSkinInventory(grid){
+  // "Default" pseudo-entry always available — clears the equipped skin so the ship's own paint shows.
+  const defaultEl = document.createElement("div");
+  const defaultEquipped = !save.equipped.skin;
+  defaultEl.className = "inv-item"+(defaultEquipped?" equipped":"");
+  defaultEl.innerHTML = '<div class="icon">🎨</div><div class="iname">Default Paint</div><div class="stat">Matches equipped ship</div>'+(defaultEquipped?'<div class="eqtag">EQUIPPED</div>':'');
+  defaultEl.addEventListener("click", ()=>{ save.equipped.skin=null; persist(); renderInventory(); });
+  grid.appendChild(defaultEl);
+
+  save.inventory.skin.forEach(id=>{
+    const skin = skinById(id);
+    if(!skin) return;
+    const equipped = save.equipped.skin===id;
+    const isEpicPlus = skin.rarity==="legendary" || skin.rarity==="blackice";
+    const el = document.createElement("div");
+    el.className = "inv-item"+(equipped?" equipped":"")+(isEpicPlus?" fx-card":"");
+    if(isEpicPlus) el.style.setProperty("--fxc", SKIN_RARITY_COLOR[skin.rarity]);
+    const swatch = '<div style="width:14px;height:14px;border-radius:50%;background:'+skin.color+';margin:6px auto 0;box-shadow:0 0 6px '+skin.color+'"></div>';
+    el.innerHTML = '<div class="icon">'+skin.icon+'</div><div class="iname">'+skin.name+'</div><div class="stat" style="color:'+SKIN_RARITY_COLOR[skin.rarity]+'">'+skin.rarity.toUpperCase()+'</div>'+swatch+(equipped?'<div class="eqtag">EQUIPPED</div>':'');
+    el.addEventListener("click", ()=>{
+      save.equipped.skin = id;
+      persist();
+      renderInventory();
+    });
+    grid.appendChild(el);
+  });
+}
+
+/* ---- Settings ---- */
+function renderSettings(){
+  document.getElementById("toggleSfx").classList.toggle("on", save.settings.sfx);
+  document.getElementById("toggleShake").classList.toggle("on", save.settings.shake);
+  document.querySelectorAll("#segControls button").forEach(b=>b.classList.toggle("active", b.dataset.val===save.settings.controls));
+  document.querySelectorAll("#segDiff button").forEach(b=>b.classList.toggle("active", b.dataset.val===save.settings.difficulty));
+  document.querySelectorAll("#segKillColor button").forEach(b=>b.classList.toggle("active", b.dataset.val===(save.settings.killColor||"white")));
+}
+document.querySelectorAll("#segKillColor button").forEach(b=> b.addEventListener("click", ()=>{
+  save.settings.killColor = b.dataset.val; persist(); renderSettings();
+}));
+document.getElementById("toggleSfx").addEventListener("click", ()=>{ save.settings.sfx=!save.settings.sfx; persist(); renderSettings(); });
+document.getElementById("toggleShake").addEventListener("click", ()=>{ save.settings.shake=!save.settings.shake; persist(); renderSettings(); });
+document.getElementById("segControls").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  save.settings.controls = b.dataset.val; persist(); renderSettings();
+});
+document.getElementById("segDiff").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  save.settings.difficulty = b.dataset.val; persist(); renderSettings();
+});
+document.getElementById("resetProgress").addEventListener("click", ()=>{
+  if(confirm("Reset all progress, battle pass and inventory? This cannot be undone.")){
+    save = defaultSave();
+    persist();
+    renderSettings(); renderMenu();
+    goTo("menu");
+  }
+});
+document.getElementById("settingsBack").addEventListener("click", (e)=>{
+  // handled by data-go delegation above for the "return to pause" case
+});
+
+/* ===================== BOOT ===================== */
+function boot(){
+  resize();
+  applyLeaderPerks();
+  goTo("menu");
+  requestAnimationFrame(loop);
+}
+window.addEventListener("load", boot);
+if(document.readyState==="complete") boot();
+
+})();
+</script>
+</body>
+</html>
